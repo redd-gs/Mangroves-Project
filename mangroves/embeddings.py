@@ -12,7 +12,14 @@ logger = logging.getLogger(__name__)
 class Embeddings:
 
     def __init__(self) -> None:
-        pass
+        self.latitude_deg = None
+        self.longitude_deg = None
+        self.year = None
+        self.regionDiameter_p = None
+        self.spatialResolution_m = None
+        self.region = None
+        self.data = None
+        self.band_names = None
 
     def _verify_year(self) -> bool:
         """
@@ -37,7 +44,7 @@ class Embeddings:
         Args:
             collection (Collection): The Collection instance to fetch data from.
         Returns:
-            np.ndarray or None: The extracted embedding patch, or None if extraction fails.
+            None
         """
         self.latitude_deg = latitude_deg
         self.longitude_deg = longitude_deg
@@ -56,14 +63,23 @@ class Embeddings:
 
     def from_file(
             self, 
-            input_path: str) -> bool:
+            input_path: str) -> None:
         try:
             with np.load(input_path) as npzfile:
-                self.data = npzfile['image_data']
-            return True
+                self.latitude_deg = npzfile['latitude_deg']
+                self.longitude_deg = npzfile['longitude_deg']
+                self.year = npzfile['year']
+                self.regionDiameter_p = npzfile['regionDiameter_p']
+                self.spatialResolution_m = npzfile['spatialResolution_m']
+                self.region = Region(
+                    self.latitude_deg, 
+                    self.longitude_deg, 
+                    self.regionDiameter_p, 
+                    self.spatialResolution_m
+                )
+                self.data = npzfile['data']
         except Exception as e:
             logger.error(f'Error loading patch from {input_path}: {e}')
-            return False
     
     def save(
             self, 
@@ -77,10 +93,12 @@ class Embeddings:
             
             np.savez_compressed(
                 output_path,
-                image_data=self.data,
+                data=self.data,
                 feature_id=feature_id,
-                centroid_lon=self.longitude_deg,
-                centroid_lat=self.latitude_deg,
+                longitude_deg=self.longitude_deg,
+                latitude_deg=self.latitude_deg,
+                regionDiameter_p=self.regionDiameter_p,
+                spatialResolution_m=self.spatialResolution_m,
                 year=self.year,
                 num_images=1,
                 band_names=band_names,

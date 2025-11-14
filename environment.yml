@@ -10,3 +10,5 @@ dependencies:
   - python-dateutil
   - earthengine-api
   - ipykernel
+  - tqdm
+  - geopandas

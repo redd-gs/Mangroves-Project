@@ -13,6 +13,7 @@ class Collection:
             self, 
             project: str) -> None:
         self.project = project
+        self.band_names = [f'A{i:02d}' for i in range(64)]
         self._initialize_gee()
 
     def _initialize_gee(self) -> bool:
@@ -99,6 +100,13 @@ class Collection:
             region: Region,
             year: int) -> np.ndarray:
         """
+        Extract the embedding patch for the specified region and year.
+
+        Args:
+            region (Region): The region to extract the patch from.
+            year (int): The year for which to extract the patch.
+        Returns:
+            np.ndarray or None: The extracted patch, or None if extraction fails.
         """
         try:
             image = self.fetch_image_from_region_in_collection(region, year)
@@ -139,10 +147,9 @@ class Collection:
             logger.info(f'Successfully extracted {len(bands_data)} bands')
             
             # Stack all 64 bands into a 64×H×W array
-            band_names = [f'A{i:02d}' for i in range(64)]
             image_stack = []
             
-            for band_name in band_names:
+            for band_name in self.band_names:
                 if band_name in bands_data:
                     image_stack.append(bands_data[band_name])
                 else:
@@ -153,7 +160,7 @@ class Collection:
                     else:
                         return None
             
-            # Stack to create 64×H×W array
+            # Stack to create D*H*W array
             patch = np.stack(image_stack, axis=0)
             
             logger.info(f'Successfully created patch with shape: {patch.shape}')

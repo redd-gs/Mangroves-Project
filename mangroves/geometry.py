@@ -16,6 +16,10 @@ class Region:
             spatialResolution_m: int) -> None:
         self.latitude_deg = latitude_deg
         self.longitude_deg = longitude_deg
+        self.centering = False
+        if regionDiameter_p % 2 == 0:
+            regionDiameter_p += 1  # Ensure odd diameter for centering
+            self.centering = True
         self.regionDiameter_p = regionDiameter_p
         self.spatialResolution_m = spatialResolution_m
         self.area_m2 = (regionDiameter_p * spatialResolution_m) ** 2
@@ -47,7 +51,7 @@ class Region:
         Returns:
             ee.Geometry.Rectangle: The rectangular region.
         """
-        regionRadius_m = self.regionDiameter_p * self.spatialResolution_m / 2  
+        regionRadius_m = (self.regionDiameter_p - 1) * self.spatialResolution_m / 2  
         latitude_rad = np.radians(self.latitude_deg)
         meters_per_deg_lat = 111320
         meters_per_deg_lon = 111320 * np.cos(latitude_rad)
