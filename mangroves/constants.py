@@ -1,0 +1,5 @@
+RADIUS_EARTH_M = 6371000.
+
+SPATIAL_RESOLUTION_M = 10.
+
+BANDS = [f'A{i:02d}' for i in range(64)]
