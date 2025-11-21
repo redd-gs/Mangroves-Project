@@ -63,7 +63,7 @@ class Region:
             min(lon for _, lon in self.pts), max(lon for _, lon in self.pts),
             min(lat for lat, _ in self.pts), max(lat for lat, _ in self.pts)
         )
-        self.coords = {'west': xMin, 'east': xMax, 'south': yMin, 'north': yMax}
+        self.coords = {'xMin': xMin, 'xMax': xMax, 'yMin': yMin, 'yMax': yMax}
 
         region = ee.Geometry.Rectangle([xMin, yMin, xMax, yMax])
         return region
