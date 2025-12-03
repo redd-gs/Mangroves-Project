@@ -131,10 +131,31 @@ class Collection:
             # Extract embedding bands data
             properties = pixel_dict['properties']
             bands_data = {}
+            target_size = int(region.nPixels)
+
             for i in range(64):
                 band_name = f'A{i:02d}'
                 if band_name in properties:
                     band_array = np.array(properties[band_name])
+                    
+                    # Crop or pad to target size
+                    h, w = band_array.shape
+                    
+                    # Center crop if larger
+                    if h > target_size:
+                        start_h = (h - target_size) // 2
+                        band_array = band_array[start_h:start_h+target_size, :]
+                    if w > target_size:
+                        start_w = (w - target_size) // 2
+                        band_array = band_array[:, start_w:start_w+target_size]
+                        
+                    # Pad if smaller
+                    h, w = band_array.shape
+                    if h < target_size or w < target_size:
+                        pad_h = max(0, target_size - h)
+                        pad_w = max(0, target_size - w)
+                        band_array = np.pad(band_array, ((0, pad_h), (0, pad_w)), mode='constant', constant_values=0)
+
                     # Apply flipud for correct display
                     band_array = np.flipud(band_array)
                     bands_data[band_name] = band_array

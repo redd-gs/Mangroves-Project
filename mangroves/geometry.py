@@ -38,7 +38,9 @@ class Region:
         return True
     
     def _get_region(self) -> ee.Geometry.Rectangle:
-        distance_m = self.nPixels / 2 * SPATIAL_RESOLUTION_M
+        # Add a buffer to ensure we get at least nPixels
+        buffer_pixels = 2
+        distance_m = (self.nPixels + buffer_pixels) / 2 * SPATIAL_RESOLUTION_M
 
         # thetas_deg = [45, 135, 225, 315]
         thetas_deg = [0, 90, 180, 270]  # BBox are defined with North, East, South, West

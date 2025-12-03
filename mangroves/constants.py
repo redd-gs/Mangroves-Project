@@ -2,6 +2,8 @@ RADIUS_EARTH_M = 6371000.
 
 SPATIAL_RESOLUTION_M = 10.
 
+REGION_DIAMETER_P = 244.    # 244x244 pixels
+
 N_BANDS = 64
 
 BANDS = [f'A{i:02d}' for i in range(N_BANDS)]

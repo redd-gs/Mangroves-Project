@@ -55,8 +55,7 @@ class Embeddings:
         self.region = Region(
             latitude_deg, 
             longitude_deg, 
-            regionDiameter_p, 
-            spatialResolution_m
+            regionDiameter_p
         )
 
         self.data = collection.extract(self.region, self.year)
