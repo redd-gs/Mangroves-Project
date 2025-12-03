@@ -4,6 +4,11 @@ channels:
   - defaults
 dependencies:
   - python=3.11
+  - torchvision
+  - torchmetrics
+  - lightning
+  - scikit-learn
+  - scikit-image
   - matplotlib
   - numpy
   - pandas
@@ -12,3 +17,5 @@ dependencies:
   - ipykernel
   - tqdm
   - geopandas
+  - ruamel.yaml
+  - rasterio
