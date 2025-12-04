@@ -1,0 +1,3 @@
+path: "/home/michael/workspace/datasets/mangroves"
+max_samples: 100
+batch_size: 32

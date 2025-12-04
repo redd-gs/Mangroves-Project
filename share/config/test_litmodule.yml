@@ -1,0 +1,10 @@
+litmodule_options:
+  checkpoint_path: ''
+  parameters:
+    num_classes: 6
+
+model_options:
+  model_class: "Classifier"
+  parameters:
+    in_channels: 64
+    out_features: 6
