@@ -42,3 +42,8 @@ To ensure the project is correctly installed, run the following command.
 $ conda activate mangroves
 $ run
 ```
+
+
+### Explication
+
+The project aims at refining GMW (Global Mangrove Watch Project) labels with a deep learning model using AlphaEarth Foundations Embeddings. 
