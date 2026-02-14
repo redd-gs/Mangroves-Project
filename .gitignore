@@ -213,6 +213,6 @@ __marimo__/
 # Output dataset
 notebooks/output_dataset/
 
-# Writing Sample (keep only text.tex)
+# Writing Sample (keep only the final PDF)
 Writing_Sample/*
-!Writing_Sample/text.tex
+!Writing_Sample/Writing_Sample.pdf
