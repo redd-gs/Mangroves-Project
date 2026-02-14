@@ -5,8 +5,8 @@ setup(
     version="0.1",
     packages=find_packages(),
     entry_points={
-        'console_scripts': {
-            'run = mangroves.run:main',
-        }
+        'console_scripts': [
+            'run = mangroves.training.main:main',
+        ]
     },
 )

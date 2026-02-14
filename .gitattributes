@@ -1,0 +1,2 @@
+# Git LFS — Track large output files
+output/**/*.npz filter=lfs diff=lfs merge=lfs -text
