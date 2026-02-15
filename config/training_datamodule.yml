@@ -1,4 +1,4 @@
-path: "/home/michael/workspace/datasets/mangroves"
+path: "./output/dataset"              # Directory with .npz embedding files
 max_samples: 100
 batch_size: 32
 val_split: 0.1

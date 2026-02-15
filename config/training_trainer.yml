@@ -6,7 +6,7 @@ hyperparameters:
   devices: 1
 callbacks:
   name: ['ModelCheckpoint', 'LearningRateMonitor']
-  parameters: [{monitor: "val_loss", save_last: True, save_top_k: 1}, {logging_interval: "step"}]
+  parameters: [{monitor: "val_loss", save_last: True, save_top_k: 1, dirpath: "./output/checkpoints/"}, {logging_interval: "step"}]
 logger:
   name: 'TensorBoardLogger'
-  parameters: {save_dir: "~/owl/logs/"}
+  parameters: {save_dir: "./output/logs/"}

@@ -1,10 +1,15 @@
 litmodule_options:
-  checkpoint_path: ''
+  checkpoint_path: './output/checkpoints/best_model.ckpt'
   parameters:
-    num_classes: 6
+    num_classes: 5
 
 model_options:
-  model_class: "Classifier"
+  model_class: "ViTClassifier"        # Must match the trained model
   parameters:
     in_channels: 64
-    out_features: 6
+    out_features: 5
+    img_size: 244
+    patch_size: 16
+    embed_dim: 256
+    depth: 6
+    num_heads: 8

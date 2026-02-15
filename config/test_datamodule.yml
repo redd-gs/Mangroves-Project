@@ -1,3 +1,3 @@
-path_alex: "/Users/galex/Downloads/mangroves_datasets"
+path: "./output/dataset"              # Directory with .npz embedding files
 max_samples: 100
 batch_size: 32

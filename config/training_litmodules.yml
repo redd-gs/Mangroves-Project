@@ -14,7 +14,12 @@ litmodule_options:
     num_classes: 6
 
 model_options:
-  model_class: "Classifier"
+  model_class: "ViTClassifier"        # ViTClassifier | CNNClassifier | Classifier
   parameters:
     in_channels: 64
-    out_features: 6
+    out_features: 5
+    img_size: 244
+    patch_size: 16
+    embed_dim: 256
+    depth: 6
+    num_heads: 8

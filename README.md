@@ -2,45 +2,196 @@
 
 ## Overview
 
-This project leverages satellite imagery embeddings from Google's AlphaEarth Foundation Model to improve the accuracy of mangrove forest mapping. It combines 64-band AlphaEarth embeddings from Google Earth Engine with Global Mangrove Watch (GMW) labels and trains deep learning models using PyTorch Lightning to predict and refine mangrove coverage.
+This project proposes an end-to-end deep learning methodology that leverages **Google DeepMind's AlphaEarth Foundations**—a model that encodes multi-modal satellite observations (optical, SAR, LiDAR, thermal) from 2017 to 2024 into unified **64-dimensional per-pixel embeddings**—to refine existing mangrove maps.
+
+Starting from **Global Mangrove Watch (GMW)** products as initial labels, we extract AlphaEarth embeddings for GMW-labeled mangrove pixels and complement them with locally sampled non-mangrove pixels (water and terrestrial vegetation). We then train a GPU-accelerated **Vision Transformer (ViT)** with self-attention to reclassify and refine the initial labels into **five graduated coverage classes** (1–20 %, 21–40 %, 41–60 %, 61–80 %, 81–100 %).
+
+To ensure model interpretability, we integrate **Gradient-weighted Class Activation Mapping (Grad-CAM)**, which produces spatial heatmaps highlighting the regions that most influence the model's classification decisions—verifying that predictions rely on ecologically meaningful patterns such as water–vegetation boundaries, tidal channel morphology, and canopy density gradients.
+
+The ViT is benchmarked against traditional ML baselines (Random Forest, XGBoost) and deep learning baselines (FCN, CNN), and predictions are qualitatively assessed against the National Parks Board mangrove mask on the Pulau Ubin study area.
+
+---
 
 ## Pipeline
 
-The workflow follows three main steps, each documented in numbered notebooks:
+The complete workflow follows **six stages**, each documented in numbered notebooks:
 
-1. **Data Acquisition** — Authenticate with Google Earth Engine, download Sentinel-2 imagery and AlphaEarth embeddings for regions of interest.
-2. **Data Processing** — Create input coordinate files, compute mangrove coverage labels from GMW shapefiles, and prepare training datasets.
-3. **Analysis & Training** — Analyze embedding quality (class separation, spatial continuity), then train and evaluate classification models via PyTorch Lightning.
+1. **Label Extraction & Coverage Computation** — GMW v3 (2020) polygons are rasterised into 244 × 244 pixel chips (2 440 m × 2 440 m at 10 m resolution) centred on polygon centroids. Mangrove coverage ratio is computed and each chip is assigned to one of five discrete classes.
+2. **Embedding Download** — For each chip, 64-dimensional AlphaEarth embeddings are retrieved from Google Earth Engine (`GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL`), producing 244 × 244 × 64 tensors.
+3. **Dataset Construction** — Chips are sampled across South-East Asia with class balancing (equal samples per coverage class). Each sample pairs a 244 × 244 × 64 embedding tensor (input) with its coverage class (label), then split into train / val / test sets.
+4. **Model Training** — A Vision Transformer is trained on embedding tensors with GPU acceleration via PyTorch Lightning (Adam optimiser, StepLR scheduler, model checkpointing on validation loss). Baseline models (FCN, CNN, Random Forest, XGBoost) are trained for comparison.
+5. **Classification** — The trained model predicts five-class mangrove coverage on new, unseen embedding tiles, producing a refined map beyond binary presence/absence.
+6. **Interpretability (Grad-CAM)** — Spatial heatmaps reveal which regions drive the model's decisions, ensuring plausibility and enabling expert review.
+
+## Inputs
+
+> See also [`input/README.md`](input/README.md) for a detailed description of every input file.
+
+### External data sources
+
+| Source | Description | Format | How to obtain |
+|--------|-------------|--------|---------------|
+| **Global Mangrove Watch v3 (2020)** | Mangrove extent polygons worldwide | Shapefile (`.shp`) | [Download from GMW](https://www.globalmangrovewatch.org/) — place at a local path referenced in `notebooks/2_data_processing/02_create_labels.ipynb` |
+| **AlphaEarth Embeddings** | 64-band per-pixel DeepMind embeddings | `GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL` via GEE | Downloaded programmatically — see `notebooks/1_data_acquisition/03_download_embeddings.ipynb` |
+| **Sentinel-2 SR Harmonized** | Optical satellite imagery (RGB + multispectral) | `COPERNICUS/S2_SR_HARMONIZED` via GEE | Downloaded via GEE API — see `notebooks/1_data_acquisition/02_download_sentinel2.ipynb` |
+| **GEE Project Key** | Google Earth Engine authentication | Text file | Create a GEE project at [earthengine.google.com](https://earthengine.google.com/) and save the project ID locally |
+| **NParks Mangrove Mask** | Pulau Ubin mangrove mask (qualitative reference only) | Image (PNG/JPG) | Provided by National Parks Board Singapore — used **only** for visual comparison, not as ground truth |
+
+### Project-generated intermediate data
+
+| File / Directory | Description | Generated by |
+|------------------|-------------|--------------|
+| `input/metadata/samples_mangrove.csv` | Sample coordinates (lat, lon, year) for embedding download | `notebooks/2_data_processing/01_create_inputs.ipynb` |
+| `input/metadata/mangrove_metadata.csv` | 2 001 chip records with id, coverage ratio, category (1–5), lat, lon, year | `notebooks/2_data_processing/02_create_labels.ipynb` |
+| `input/metadata/data.csv` | Toy dataset index (file paths, ratios, train/test flag) | `notebooks/2_data_processing/03_create_toy_dataset.ipynb` |
+| `input/toy_dataset/train/`, `test/` | Synthetic 100 × 100 × 8 GeoTIFFs for pipeline smoke-testing | `notebooks/2_data_processing/03_create_toy_dataset.ipynb` |
+| `output/dataset/*.npz` | **Main training data** — 244 × 244 × 64 AlphaEarth embedding tensors (compressed NumPy). Filename encodes category and coverage: `cat{N}_id{X}_cov{Y}.npz` | `notebooks/2_data_processing/02_create_labels.ipynb` |
+
+### Configuration files
+
+| File | Purpose |
+|------|---------|
+| `config/training_datamodule.yml` | Dataset path (`output/dataset`), max_samples, batch_size, val/test split ratios |
+| `config/training_litmodules.yml` | Model architecture (`ViTClassifier` by default), optimiser (Adam), LR scheduler, hyperparameters |
+| `config/training_trainer.yml` | Epochs, GPU accelerator, callbacks (ModelCheckpoint, LRMonitor), TensorBoard logger |
+| `config/test_datamodule.yml` | Test dataset path and parameters |
+| `config/test_litmodule.yml` | Model architecture + checkpoint path for test-time inference |
+
+---
 
 ## Project Structure
 
-- `mangroves/` : Core Python package (GEE wrappers, geospatial utilities, embedding extraction)
-- `mangroves/training/` : (PyTorch Lightning pipeline — dataset, data module, config loaders, CLI)
-- `notebooks/1_data_acquisition/` : Download & explore GMW shapefiles, Sentinel-2, and AlphaEarth embeddings 
-- `notebooks/2_data_processing/` : Create input coordinates, compute coverage labels, build toy dataset |
-- `notebooks/3_analysis/` : Analyze embeddings (class separation, cosine similarity, spatial continuity) 
-- `notebooks/4_utilities/` : Validate geometry & math utilities 
-- `config/` : YAML configuration files for training 
-- `output/` : Generated outputs 
-- `Writing_Sample/` : Research paper (PDF) 
+```
+Mangroves-Project/
+│
+├── input/                                     # ── All input data ──
+│   ├── README.md                              #   Documentation for input data
+│   ├── metadata/                              #   CSV files with sample coordinates & labels
+│   │   ├── data.csv                           #     Toy dataset index
+│   │   ├── mangrove_metadata.csv              #     2 001 chip metadata (id, category, lat, lon)
+│   │   └── samples_mangrove.csv               #     Sample coordinates for embedding download
+│   ├── toy_dataset/                           #   Synthetic GeoTIFFs for pipeline smoke-testing
+│   │   ├── train/  (32 .tif files)
+│   │   └── test/   (8 .tif files)
+│   └── rgb_previews/                          #   Sentinel-2 RGB preview images per category
+│       ├── cat1/  …  cat5/                    #     1–20 % … 81–100 % coverage
+│
+├── mangroves/                                 # ── Core Python package ──
+│   ├── __init__.py                            #   Package marker
+│   ├── collection.py                          #   GEE interface — fetch AlphaEarth embeddings
+│   ├── constants.py                           #   Project constants (resolution, bands, region size)
+│   ├── embeddings.py                          #   Embeddings class — download, load, save .npz
+│   ├── geometry.py                            #   Region class — geodesic bounding boxes for GEE
+│   ├── utils.py                               #   Haversine distance, geodesic circles
+│   └── training/                              # ── PyTorch Lightning training pipeline ──
+│       ├── __init__.py
+│       ├── models.py                          #   Model architectures: Classifier (FCN), CNNClassifier, ViTClassifier
+│       ├── modules.py                         #   LitModule — Lightning wrapper with loss, metrics & logging
+│       ├── gradcam.py                         #   Grad-CAM interpretability for CNN & ViT
+│       ├── data.py                            #   MangroveDataset (.npz loader) + MangroveDataModule
+│       ├── load.py                            #   Config-driven factory (YAML → model / datamodule / trainer)
+│       ├── main.py                            #   CLI entry point (`run` command)
+│       └── transforms.py                      #   Data augmentation transforms (extensible)
+│
+├── notebooks/                                 # ── Jupyter notebooks (numbered workflow) ──
+│   ├── 1_data_acquisition/                    #   Steps 1–2: Download & explore raw data
+│   │   ├── 01_explore_gmw_data.ipynb          #     Explore GMW v3 2020 shapefile
+│   │   ├── 02_download_sentinel2.ipynb        #     Download Sentinel-2 RGB patches via GEE
+│   │   ├── 03_download_embeddings.ipynb       #     Download AlphaEarth 64-band embeddings
+│   │   └── 04_batch_download_embeddings.ipynb #     Batch download embeddings from CSV
+│   │
+│   ├── 2_data_processing/                     #   Step 3: Create inputs, labels, dataset
+│   │   ├── 01_create_inputs.ipynb             #     Generate sample coordinate CSV → input/metadata/
+│   │   ├── 02_create_labels.ipynb             #     Compute coverage labels, download & save .npz → output/dataset/
+│   │   └── 03_create_toy_dataset.ipynb        #     Create synthetic toy dataset → input/toy_dataset/
+│   │
+│   ├── 3_analysis/                            #   Embedding-level analysis
+│   │   ├── 01_embedding_class_separation.ipynb    # Analyse embedding class separability (PCA, t-SNE)
+│   │   ├── 02_cosine_similarity_map.ipynb         # Cosine similarity heatmap across bands
+│   │   └── 03_spatial_continuity.ipynb            # Embedding spatial continuity analysis
+│   │
+│   ├── 4_training/                            #   Step 4: Model training & pipeline testing
+│   │   └── 01_test_training_pipeline.ipynb    #     Smoke-test DataModule, DataLoader & training loop
+│   │
+│   ├── 5_evaluation/                          #   Steps 5–7: Inference, interpretability, benchmarks
+│   │   ├── 01_inference.ipynb                 #     Run trained model on new tiles (Step 5)
+│   │   ├── 02_gradcam_interpretability.ipynb  #     Grad-CAM heatmap visualisation (Step 6)
+│   │   ├── 03_baseline_comparison.ipynb       #     RF, XGBoost, FCN, CNN vs ViT benchmark (Step 4)
+│   │   └── 04_qualitative_comparison.ipynb    #     Pulau Ubin vs NParks mask (Step 7)
+│   │
+│   └── 6_utilities/                           #   Helper notebooks
+│       └── 01_validate_geometry.ipynb         #     Geometry & geodesic math validation
+│
+├── config/                                    # ── YAML configuration for training ──
+│   ├── training_datamodule.yml
+│   ├── training_litmodules.yml
+│   ├── training_trainer.yml
+│   ├── test_datamodule.yml
+│   └── test_litmodule.yml
+│
+├── output/                                    # ── All generated outputs ──
+│   ├── dataset/                               #   .npz embedding tensors (244 × 244 × 64)
+│   ├── checkpoints/                           #   Model .ckpt files (best_model.ckpt, …)
+│   ├── predictions/                           #   Inference results (CSV / NPZ)
+│   └── figures/                               #   Generated plots & Grad-CAM heatmaps
+│
+├── Writing_Sample/                            # ── Research paper (LaTeX) ──
+│   ├── text.tex                               #   Main paper
+│   ├── vit_architecture_mangroves.tex         #   ViT architecture appendix
+│   ├── workflowfinal_preview.tex              #   Workflow diagram
+│   ├── references.bib                         #   BibTeX bibliography
+│   └── Figures/PNG/                           #   Paper figures
+│
+├── environment.yml                            # Conda / Mamba environment specification
+├── setup.py                                   # Package installer (pip install -e .)
+└── README.md
+```
+
+---
 
 ## Installation
 
 ### 1. Install Mamba (Recommended)
 
 ```bash
-$ wget "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
-$ bash Miniforge3-$(uname)-$(uname -m).sh
-$ ~/miniforge3/bin/conda init
+wget "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+bash Miniforge3-$(uname)-$(uname -m).sh
+~/miniforge3/bin/conda init
 ```
 
 ### 2. Clone & Install
 
 ```bash
-$ git clone https://github.com/redd-gs/Mangroves-Project.git
-$ cd Mangroves-Project
-$ mamba env create -f environment.yml
-$ conda activate mangroves
-$ pip install -e .
+git clone https://github.com/redd-gs/Mangroves-Project.git
+cd Mangroves-Project
+mamba env create -f environment.yml
+conda activate mangroves
+pip install -e .
 ```
+
+---
+
+## Training
+
+### Via CLI
+
+```bash
+run --train \
+    --litmodule_config config/training_litmodules.yml \
+    --datamodule_config config/training_datamodule.yml \
+    --trainer_config config/training_trainer.yml
+```
+
+### Via notebooks
+
+| Step | Notebook folder | What to run |
+|------|----------------|-------------|
+| 1 | `notebooks/1_data_acquisition/` | Run 01 → 04 to download GMW data, Sentinel-2 imagery, and AlphaEarth embeddings |
+| 2 | `notebooks/2_data_processing/` | Run 01 → 03 to create sample CSVs, compute coverage labels, and build the dataset |
+| 3 | `notebooks/3_analysis/` | Run 01 → 03 to analyse embedding class separation, cosine similarity, and spatial continuity |
+| 4 | `notebooks/4_training/` | Run 01 to smoke-test the training pipeline — or use the CLI above for full training |
+| 5 | `notebooks/5_evaluation/01_inference.ipynb` | Run the trained model on new tiles |
+| 6 | `notebooks/5_evaluation/02_gradcam_interpretability.ipynb` | Generate Grad-CAM heatmaps for interpretability |
+| 7 | `notebooks/5_evaluation/03_baseline_comparison.ipynb` | Benchmark ViT against RF, XGBoost, FCN, CNN |
+| 8 | `notebooks/5_evaluation/04_qualitative_comparison.ipynb` | Compare predictions against NParks mangrove mask on Pulau Ubin |
 

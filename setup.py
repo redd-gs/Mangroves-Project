@@ -6,7 +6,7 @@ setup(
     packages=find_packages(),
     entry_points={
         'console_scripts': [
-            'run = mangroves.training.main:main',
+            'run = mangroves.pipeline.main:main',
         ]
     },
 )
