@@ -1,13 +1,27 @@
 """
 Mangroves — Core Python package for mangrove mapping with AlphaEarth embeddings.
 
-Sub-packages:
-    mangroves.pipeline   — PyTorch Lightning training pipeline, models, Grad-CAM
-
 Modules:
-    mangroves.collection — Google Earth Engine interface for satellite embeddings
-    mangroves.constants  — Project-wide constants (resolution, bands, etc.)
-    mangroves.embeddings — Embedding download, save, and load
-    mangroves.geometry   — Geographic region / bounding-box utilities
-    mangroves.utils      — Haversine distance, geodesic circles, etc.
+    constants             — Project-wide constants (resolution, bands, etc.)
+
+    Geospatial & Data Acquisition:
+    geo_utilities         — Geographic region / bounding-box utilities
+    math_utilities        — Haversine distance, geodesic circles, etc.
+    gee_collection        — Google Earth Engine interface for satellite embeddings
+    embedding_manager     — Embedding download, save, and load
+
+    Data Loading & Preprocessing:
+    dataset               — PyTorch Dataset and DataModule classes
+    data_transforms       — Data augmentation transforms
+
+    Models & Architectures:
+    model_architectures   — Classifier, CNNClassifier, ViTClassifier
+
+    Training:
+    training_module       — PyTorch Lightning module wrapper
+    config_loaders        — YAML configuration loaders
+    train                 — Main training entry point
+
+    Interpretability:
+    grad_cam              — Grad-CAM visualization for CNN and ViT models
 """
