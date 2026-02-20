@@ -13,9 +13,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# ---------------------------------------------------------------------------
-# Fully-Connected Baseline
-# ---------------------------------------------------------------------------
+# Simple Fully-Connected Classifier
+
 class Classifier(nn.Module):
     """Simple fully-connected classifier operating on flattened embeddings."""
 
@@ -43,9 +42,8 @@ class Classifier(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-# ---------------------------------------------------------------------------
-# CNN Baseline
-# ---------------------------------------------------------------------------
+# CNN Classifier
+
 class CNNClassifier(nn.Module):
     """Convolutional baseline for spatial pattern recognition."""
 
@@ -82,9 +80,9 @@ class CNNClassifier(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-# ---------------------------------------------------------------------------
+
 # Vision Transformer
-# ---------------------------------------------------------------------------
+
 class PatchEmbedding(nn.Module):
     """Split image into non-overlapping patches and project to embedding dim."""
 

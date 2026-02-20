@@ -32,7 +32,6 @@ class GradCAM:
         gradcam = GradCAM(model, target_layer=model.blocks[-1].norm1)
         heatmap = gradcam(input_tensor, target_class=2)
     """
-
     def __init__(self, model: torch.nn.Module,
                  target_layer: torch.nn.Module):
         """

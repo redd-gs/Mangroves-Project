@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 class Region:
-
     def __init__(
             self, 
             lat_deg: float, 

@@ -1,5 +1,0 @@
-# Never commit credentials
-*.txt
-*.json
-*.key
-gee_project_key.txt
