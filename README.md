@@ -28,10 +28,10 @@ The complete workflow follows **six stages**, each documented in numbered notebo
 | Source | Format | How to obtain |
 |--------|--------|---------------|
 | **Global Mangrove Watch v3 (2020)** | Shapefile | [Download](https://www.globalmangrovewatch.org/) → place in `input/raw_data/gmw_v3_2020/` |
-| **AlphaEarth Embeddings** | GEE: `GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL` | Downloaded programmatically via [`download_embeddings.ipynb`](notebooks/download_embeddings.ipynb) |
+| **AlphaEarth Embeddings** | GEE: `GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL` | Showing how to download via GEE API in [`download_embeddings.ipynb`](notebooks/download_embeddings.ipynb) |
 | **Sentinel-2 SR Harmonized** | GEE: `COPERNICUS/S2_SR_HARMONIZED` | Downloaded via GEE API |
 | **GEE Project Key** | Text file | Create GEE project → save project ID in `input/raw_data/gee_credentials/` |
-| **NParks Mangrove Mask** | PNG/JPG | Provided by NParks Singapore — for visual comparison only |
+
 
 ### Configuration Files (`config/`)
 
