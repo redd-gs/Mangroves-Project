@@ -12,7 +12,7 @@ from typing import List
 import os
 
 
-def load_datamodule_from_config(path_config: List[str]) -> LightningDataModule:
+def load_datamodule_from_config(path_config: str) -> LightningDataModule:
     with open(path_config, "r") as config:
         yaml = YAML(typ="safe")
         config = yaml.load(config)
