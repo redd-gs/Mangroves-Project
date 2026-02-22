@@ -45,24 +45,3 @@ def geodesic_circle(
         lon_deg = math.degrees(lon_rad)
         pts.append((lat_deg, lon_deg))
     return pts
-
-
-def planar_approx_circle(
-        lat0_deg: float, 
-        lon0_deg: float, 
-        distance_m: float, 
-        n_points: int = 360, 
-        R: float = RADIUS_EARTH_M) -> List[Tuple[float, float]]:
-    """
-    Generate points approximating a circle around a reference point using planar approximation.
-    """
-    K = R * (math.pi / 180)  # meters per degree latitude at equator (approx 111320 m)
-    pts = []
-    for k in range(n_points):
-        theta = 2 * math.pi * k / n_points  # angle
-        dlat_deg = (distance_m * math.cos(theta)) / K
-        dlon_deg = (distance_m * math.sin(theta)) / (K * math.cos(lat0_deg * (math.pi / 180)))
-        lat_deg = lat0_deg + dlat_deg
-        lon_deg = lon0_deg + dlon_deg
-        pts.append((lat_deg, lon_deg))
-    return pts

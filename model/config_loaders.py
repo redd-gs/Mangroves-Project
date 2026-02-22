@@ -2,13 +2,11 @@ import torch.optim as Optimizer
 import torch.optim.lr_scheduler as LR_Scheduler
 import pytorch_lightning.callbacks as Callbacks
 import pytorch_lightning.loggers as Loggers
-import torchvision.transforms as T
 from pytorch_lightning import LightningDataModule, LightningModule, Trainer
-from model.dataset import MangroveDataset, MangroveDataModule
+from model.dataset import MangroveDataModule
 from model import model_architectures as models
 from model import training_module as modules
 from ruamel.yaml import YAML
-from typing import List
 import os
 
 

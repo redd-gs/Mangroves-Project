@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import pandas as pd
 from torch.utils.data import Dataset, Subset, DataLoader
 from pytorch_lightning import LightningDataModule
 from typing import Dict, List, Optional
@@ -12,7 +13,7 @@ import glob
 
 # Coverage category label mapping
 CATEGORY_BINS = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4}
-CATEGORY_NAMES = ['1-20%', '21-40%', '41-60%', '61-80%', '81-100%']
+CATEGORY_NAMES = ['0%', '1-20%', '21-40%', '41-60%', '61-80%', '81-100%']
 
 
 def _parse_npz_filename(filename: str) -> Dict:
@@ -44,7 +45,7 @@ class MangroveDataset(Dataset):
                  categories: Optional[List[int]] = None):
         """
         Args:
-            path: Path to directory containing .npz files, OR directory with data.csv.
+            path: Path to directory containing .npz files, or directory with data.csv.
             train: Ignored when loading .npz files (split handled by DataModule).
             max_samples: Maximum number of samples to load (-1 = all).
             categories: List of category ints to include (e.g. [1,2,3,4,5]).
@@ -53,7 +54,7 @@ class MangroveDataset(Dataset):
         self.path = Path(path)
         self.samples: List[Dict] = []
 
-        # ---- .npz directory mode ----
+        # .npz directory mode 
         npz_files = sorted(glob.glob(str(self.path / '*.npz')))
         if npz_files:
             for fpath in npz_files:
@@ -67,7 +68,6 @@ class MangroveDataset(Dataset):
                                      'coverage': meta['coverage']})
         else:
             # ---- Legacy CSV mode ----
-            import pandas as pd
             csv_path = self.path / 'data.csv'
             if csv_path.exists():
                 data = pd.read_csv(csv_path)
@@ -75,7 +75,7 @@ class MangroveDataset(Dataset):
                 for _, row in data.iterrows():
                     self.samples.append({
                         'path': str(self.path / row['embeddings']),
-                        'label': 0,
+                        'label': int(row['category']) - 1,  # 0-indexed class label
                         'coverage': row.get('ratio', 0.0)
                     })
 
@@ -113,7 +113,7 @@ class MangroveDataset(Dataset):
 
 class MangroveDataModule(LightningDataModule):
     """
-    Based on PyTorch Lightning DataModule, this class is used to create a DataModule for a dataset.
+    This class is used to create a DataModule for a dataset.
     """
     def __init__(self,
                  dataset: MangroveDataset,

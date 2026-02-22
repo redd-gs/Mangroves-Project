@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import logging
-from datetime import datetime
 from model.geo_utilities import Region
 from model.gee_collection import Collection
 
@@ -21,15 +20,6 @@ class Embeddings:
         self.data = None
         self.band_names = None
 
-    def _verify_year(self) -> bool:
-        """
-        Verify if the year is within valid range for AlphaEarth data.
-        """
-        if self.year < 2017 or self.year > datetime.now().year:
-            logger.error(f'Invalid year: {self.year}. Must be between 2017 and {datetime.now().year}.')
-            return False
-        return True
-    
     def from_collection(
             self, 
             latitude_deg: float, 
@@ -60,26 +50,6 @@ class Embeddings:
 
         self.data = collection.extract(self.region, self.year)
 
-    def from_file(
-            self, 
-            input_path: str) -> None:
-        try:
-            with np.load(input_path) as npzfile:
-                self.latitude_deg = npzfile['latitude_deg']
-                self.longitude_deg = npzfile['longitude_deg']
-                self.year = npzfile['year']
-                self.regionDiameter_p = npzfile['regionDiameter_p']
-                self.spatialResolution_m = npzfile['spatialResolution_m']
-                self.region = Region(
-                    self.latitude_deg, 
-                    self.longitude_deg, 
-                    self.regionDiameter_p, 
-                    self.spatialResolution_m
-                )
-                self.data = npzfile['data']
-        except Exception as e:
-            logger.error(f'Error loading patch from {input_path}: {e}')
-    
     def save(
             self, 
             output_path: str, 

@@ -1,5 +1,12 @@
+import torch
+import torch.nn.functional as F
+import numpy as np
+from typing import Optional, Tuple
+
+
 """
-Gradient-weighted Class Activation Mapping (Grad-CAM) for mangrove models.
+Gradient-weighted Class Activation Mapping (Grad-CAM) 
+for CNN or ViT classifiers.
 
 Provides interpretability by highlighting which spatial regions in
 a 244×244 AlphaEarth embedding tile most influence the model's
@@ -12,26 +19,9 @@ Reference:
     via Gradient-based Localization", ICCV 2017.
 """
 
-import torch
-import torch.nn.functional as F
-import numpy as np
-from typing import Optional, Tuple
-
 
 class GradCAM:
-    """
-    Grad-CAM for CNN or ViT classifiers.
-
-    Usage (CNN):
-        model = CNNClassifier(...)
-        gradcam = GradCAM(model, target_layer=model.features[-3])
-        heatmap = gradcam(input_tensor, target_class=2)
-
-    Usage (ViT):
-        model = ViTClassifier(...)
-        gradcam = GradCAM(model, target_layer=model.blocks[-1].norm1)
-        heatmap = gradcam(input_tensor, target_class=2)
-    """
+    
     def __init__(self, model: torch.nn.Module,
                  target_layer: torch.nn.Module):
         """

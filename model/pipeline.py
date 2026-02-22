@@ -22,11 +22,10 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
-from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+from xgboost import XGBClassifier
 
 from model.model_architectures import Classifier, CNNClassifier, ViTClassifier
-from model.training_module import LitModule
 from model.grad_cam import GradCAM
 
 logger = logging.getLogger(__name__)
@@ -34,9 +33,7 @@ logger = logging.getLogger(__name__)
 CATEGORY_NAMES = ['1-20%', '21-40%', '41-60%', '61-80%', '81-100%']
 
 
-# ---------------------------------------------------------------------------
 # Data loading
-# ---------------------------------------------------------------------------
 
 def parse_label(filename: str):
     """Extract 0-indexed label from filename like cat2_id50.0_cov0.30.npz."""
@@ -51,9 +48,9 @@ def load_all_embeddings(embedding_dir: str):
     Load all .npz embeddings and their labels from a directory.
 
     Returns:
-        embeddings_list: list of (64, H, W) numpy arrays
-        labels: numpy array of 0-indexed labels
-        npz_files: list of file paths
+        embeddings_list : list of (64, H, W) numpy arrays
+        labels : numpy array of 0-indexed labels
+        npz_files : list of file paths
     """
     npz_files = sorted(glob.glob(os.path.join(embedding_dir, '*.npz')))
     logger.info(f"Found {len(npz_files)} .npz files in {embedding_dir}")
@@ -81,9 +78,8 @@ def load_all_embeddings(embedding_dir: str):
     return embeddings_list, labels, valid_files
 
 
-# ---------------------------------------------------------------------------
 # ML Baselines (Random Forest, XGBoost)
-# ---------------------------------------------------------------------------
+
 
 def extract_ml_features(embeddings_list: list) -> np.ndarray:
     """Compute mean + std over spatial dims for each band → (N, 128) feature matrix."""
@@ -96,9 +92,8 @@ def extract_ml_features(embeddings_list: list) -> np.ndarray:
 def train_ml_baselines(X_train, y_train, X_test, y_test):
     """
     Train Random Forest and XGBoost on pre-extracted features.
-
-    Returns:
-        dict of {model_name: {'accuracy': float, 'f1': float, 'predictions': array}}
+    
+    Returns: dict of {model_name: {'accuracy', 'f1', 'predictions', 'type'}}
     """
     results = {}
 
@@ -117,7 +112,6 @@ def train_ml_baselines(X_train, y_train, X_test, y_test):
 
     # XGBoost
     try:
-        from xgboost import XGBClassifier
         logger.info("Training XGBoost...")
         xgb = XGBClassifier(n_estimators=200, max_depth=6, learning_rate=0.1,
                             use_label_encoder=False, eval_metric='mlogloss',
@@ -137,17 +131,15 @@ def train_ml_baselines(X_train, y_train, X_test, y_test):
     return results
 
 
-# ---------------------------------------------------------------------------
-# DL Training (simple loop, no Lightning — for baselines + quick comparison)
-# ---------------------------------------------------------------------------
+# DL Training (simple loop, no Lightning : for baselines + comparison)
+
 
 def train_dl_model(model, train_embs, train_labels, test_embs, test_labels,
                    epochs=20, batch_size=8, lr=1e-3, device='cpu'):
     """
     Train a DL model with a simple loop and evaluate on test set.
 
-    Returns:
-        (accuracy, f1, predictions_array)
+    Returns: (accuracy, f1, predictions_array)
     """
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -187,8 +179,7 @@ def train_all_dl_baselines(train_embs, train_labels, test_embs, test_labels,
     """
     Train FCN, CNN, and ViT baselines.
 
-    Returns:
-        dict of {model_name: {'accuracy', 'f1', 'predictions', 'type'}}
+    Returns: dict of {model_name: {'accuracy', 'f1', 'predictions', 'type'}}
     """
     results = {}
     H, W = train_embs[0].shape[1], train_embs[0].shape[2]
@@ -217,12 +208,11 @@ def train_all_dl_baselines(train_embs, train_labels, test_embs, test_labels,
     return results
 
 
-# ---------------------------------------------------------------------------
 # Comparison outputs
-# ---------------------------------------------------------------------------
+
 
 def generate_comparison_table(results: dict, output_path: str = None) -> pd.DataFrame:
-    """Generate a comparison table from results dict. Optionally save to CSV."""
+    """Generate a comparison table from results dict. Save to CSV."""
     rows = []
     for name, r in results.items():
         rows.append({
@@ -268,16 +258,15 @@ def plot_confusion_matrices(results: dict, y_test, output_path: str):
     logger.info(f"Confusion matrices saved to {output_path}")
 
 
-# ---------------------------------------------------------------------------
+
 # Inference
-# ---------------------------------------------------------------------------
+
 
 def run_inference(model, embedding_dir: str, device: str = 'cpu') -> pd.DataFrame:
     """
     Run inference on all .npz files in a directory.
 
-    Returns:
-        DataFrame with columns: file, predicted_class, predicted_label, confidence, prob_*
+    Returns : DataFrame with columns: file, predicted_class, predicted_label, confidence, prob_*
     """
     npz_files = sorted(glob.glob(os.path.join(embedding_dir, '*.npz')))
     logger.info(f"Running inference on {len(npz_files)} tiles...")
@@ -329,9 +318,10 @@ def plot_prediction_distribution(df: pd.DataFrame, output_path: str):
     logger.info(f"Prediction distribution saved to {output_path}")
 
 
-# ---------------------------------------------------------------------------
+
 # Grad-CAM
-# ---------------------------------------------------------------------------
+
+
 
 def embeddings_to_pseudo_rgb(emb: np.ndarray) -> np.ndarray:
     """Convert (64, H, W) embedding to (H, W, 3) pseudo-RGB with percentile stretching."""

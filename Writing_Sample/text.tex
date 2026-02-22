@@ -2,16 +2,15 @@
 \IEEEoverridecommandlockouts
 
 \usepackage[hidelinks]{hyperref}
-\usepackage[cmex10]{amsmath}%American Math Society(AMS) math formatting
-\usepackage{amssymb,amsfonts}%AMS extra symbols and fonts
-\interdisplaylinepenalty=2500%allow line breaks in multi-line formulas
-%\usepackage{stfloats}
-\usepackage{dblfloatfix}%fix double column figure ordering and placement
+\usepackage[cmex10]{amsmath}
+\usepackage{amssymb,amsfonts}
+\interdisplaylinepenalty=2500
+\usepackage{dblfloatfix}
 
 \usepackage[ruled,vlined]{algorithm2e}
 \usepackage{graphicx}
 \graphicspath{{Figures/PDF/}{Figures/PNG/}}
-\usepackage[caption=false,font=footnotesize]{subfig}%IEEE-friendly subfigures
+\usepackage[caption=false,font=footnotesize]{subfig}
 
 \usepackage{booktabs}
 \usepackage{siunitx}
@@ -23,108 +22,93 @@
 \begin{document}
 
 \title{\uppercase{Mangroves Monitoring with AlphaEarth Foundations and Self-Attention}}
-%\author{}
 \maketitle
+
 \begin{abstract}
-Mangrove ecosystems are critical for global carbon sequestration, 
-yet accurate large-scale mapping remains challenging due to tidal variability, 
-spectral ambiguity, and persistent cloud cover in tropical regions. 
-We propose an end-to-end deep learning methodology that leverages Google DeepMind's AlphaEarth Foundations--a model that encodes multi-modal satellite observations (optical, SAR, LiDAR, thermal) from 2017 to 2024 into unified 64-dimensional per-pixel embeddings---to refine existing mangrove maps. 
-Starting from Global Mangrove Watch (GMW) products as initial labels, 
-we extract AlphaEarth embeddings for GMW-labeled mangrove pixels and complement them with locally sampled non-mangrove pixels (water and terrestrial vegetation). 
-We then train a GPU-accelerated, attention-based vision transformer to reclassify and refine the initial labels. 
-The self-attention mechanism enables the model to exploit the spatial context inherent in each embedding, 
-capturing landscape-level patterns that traditional pixel-wise classifiers miss. 
-Our approach involves a pipeline that does not require any external ground truth. 
-To enhance model interpretability, we integrate Gradient-weighted Class Activation Mapping (Grad-CAM) to visualize which spatial regions most influence the model's classification decisions.
-Our workflow demonstrates how foundation model embeddings, combined with GPU-accelerated deep learning and attention-based interpretability, 
-can improve mangrove boundary delineation and provide multi-class coverage estimates beyond binary presence/absence maps.
+Mangrove forests are ecologically important but hard to map at scale because of tides, cloud cover, and the difficulty of telling mangroves apart from other coastal vegetation. 
+Existing products like the Global Mangrove Watch (GMW) 
+only give a binary yes/no label, 
+which misses important details about how dense the mangrove cover actually is. 
+We propose a pipeline that uses AlphaEarth Foundations--64-dimensional per-pixel embeddings that combine optical, SAR, LiDAR, and thermal satellite data from 2017 to 2024--
+to turn GMW labels into six coverage classes (0\%, 1-20\%, 21-40\%, 41-60\%, 61-80\%, 81-100\%). 
+A Vision Transformer (ViT) trained with self-attention learns the spatial patterns in each 244$\times$244 image chip. 
+Grad-CAM maps show that the model focuses on the right ecological features. 
+The pipeline works without any external ground truth labels and can be applied anywhere in the world.
+
 \end{abstract}
 
 \section{Introduction}
 
-Mangrove forests, which constitute an interface where terrestrial, estuarine and marine processes interact (Wang et al. 2019 \cite{article6}), cover barely 0.1\% of the global land surface yet they store between 4 and 10 times more carbon per unit area than many terrestrial forest types (Kauffman et al. 2020 \cite{article23}).
+Mangrove forests cover barely 0.1\% of the Earth's land surface yet store four to ten times more carbon per unit area than most other forests (Kauffman et~al.~\cite{article23}). 
 
-Thanks to this environmental setting, they are one of the most valuable ecosystems on Earth, ecologically and economically (C\'{a}rdenas et al. 2017 \cite{article5}), providing critical ecosystem services such as coastal protection, habitat for biodiversity, and significant carbon sequestration (Farzanmanesh et al. 2021 \cite{article8}).
+Beyond carbon, they protect coastlines, support biodiversity 
+and provide services whose value depends on how accurately their extent is mapped (C\'ardenas et~al.~\cite{article5}; Farzanmanesh et~al.~\cite{article8}). 
 
-From an environmental economics perspective, reliable mangrove extent maps are a prerequisite for quantifying benefits and costs at the right spatial scale: avoided coastal damages, restoration prioritization, and the valuation of blue-carbon services. 
-For carbon credits, they directly support Measurement, Reporting and Verification (MRV): a credible baseline, accurate delineation of project boundaries, and robust detection of changes over time. 
-In practice, errors along mangrove--water and mangrove--terrestrial interfaces can bias area estimates and propagate to carbon stock calculations, increasing uncertainty and weakening the credibility of issued credits (Merchant et al. 2017 \cite{article34}). 
-Therefore, improving label quality---especially boundary precision in tidal transition zones---is not only a remote-sensing problem, but also a key enabler for transparent, defensible blue-carbon accounting (Farzanmanesh et al. 2021 \cite{article8}).
+In "Blue Carbon" markets, boundary errors lead directly to errors in carbon stock estimates, 
+which reduces the credibility of issued credits (Merchant et~al.~\cite{article34}).
 
-But this environmental complexity complicates consistent mapping: mangroves may be temporarily submerged because of tidal fluctuations, 
-the state of a mangrove (going from terrestrial to estuarine or estuarine to marine and so forth) alters reflectance anisotropy, 
-and frequent cloud cover in humid tropics reduces the number of usable optical observations (Giri et al. 2016; Merchant et al. 2017 \cite{article4,article34}).
+The Global Mangrove Watch v3 (Bunting et~al.~\cite{article14}) is the most widely used global mangrove map, 
+but it has known problems : boundaries are imprecise in tidal zones, 
+narrow strips of fringing mangroves are often missed 
+and the map only gives binary presence/absence labels at 100\,m resolution. 
 
-Satellite Imagery has been extensively used on many occasions to establish mangroves mapping, 
-with ground truth samples and usage of open source optical and SAR images (Tran et al. 2022; Purnamasayangsukasih et al. 2016; Maurya et al. 2021 \cite{article1,article2,article9}). 
-Most studies used multispectral (sometimes hyperspectral if available) and radar datasets. 
-But AlphaEarth Foundations has been able to act as a 64-dimension sphere, constriving in each pixel optical, radar, lidar, thermal and other existing satellite imagery data from 2017 to 2024. 
-This breakthrough allows us to directly use these embeddings to analyse spatial and temporal features between each pixels. 
+Traditional classifiers that use single-date optical or radar images struggle even more because tidal flooding,
+cloud cover and spectral similarity between mangroves and dense forests make reliable classification very difficult (Tran et~al.~\cite{article1}; Giri et~al.~\cite{article4}).
+Broader reviews of satellite-based mangrove monitoring confirm these limitations across several decades of research (Purnamasayangsukasih et~al.~\cite{article2}; Wang et~al.~\cite{article6}; Maurya et~al.~\cite{article9}).
 
-The Global Mangrove Watch (GMW) (Bunting et al. 2022 \cite{article14}) provides mangrove extent products (polygon/raster masks) derived from satellite imagery analysis, 
-but with limited local precision (pixels representing mangroves are 100m-large): boundaries can be approximate, especially in tidal transition zones and mixed coastal vegetation.
+These limitations are clearly visible when comparing the GMW map with available reference imagery. 
 
-In October 2025, the CoastTrain Reference Dataset (Murray et al., 2022) was released as a point-based labeled dataset used to train the GMW classifiers. 
-Although CoastTrain is sometimes presented as a ``reference'' dataset, it is difficult to consider it as an independent ground truth for our objective: it is not independent from GMW (it is part of the same training chain), 
-using it as ground truth would introduce circularity when assessing or refining GMW-derived labels, 
-and its errors manifest as point-level label noise, particularly in areas where classification is ambiguous. 
-For these reasons, our methodology starts from GMW labels (as the product we aim to refine). 
+Fig.~\ref{fig:pulau_intro} shows Pulau Ubin, 
+a mangrove-rich island northeast of Singapore, 
+where the National Parks Board (NParks) mask and the Sentinel-2 image reveal fringing mangrove strips 
+and tidal zones that GMW either misclassifies or misses entirely. 
 
-\section{AlphaEarth embeddings around Pulau Ubin}
+Mangroves are shown in darker green in the NParks mask (Fig.~\ref{fig:pulau_nparks}) 
+and in white in the GMW map (Fig.~\ref{fig:pulau_gmw}).
 
-\subsection{Methodology}
-
-\subsubsection{Study Area and Data Sources}
-
-We focused our analysis on Pulau Ubin, a mangrove-rich island northeast of Singapore, 
-which offers diverse coastal ecosystems and accessibility for qualitative comparison. 
-The National Parks Board of Singapore provided a mangrove mask for this area; 
-however, this map dates from several years ago and cannot be considered a true ground truth--coastal ecosystems evolve, mangrove boundaries shift with sedimentation and erosion, and tidal dynamics alter vegetation extent over time. 
-We therefore use it only as an independent qualitative reference to visualize differences with GMW (Fig.~\ref{fig:pulau_visual}).
+This gap motivated our approach : instead of relying on external ground truth, 
+our pipeline learns to improve GMW labels directly from the information encoded in AlphaEarth embeddings.
 
 \begin{figure*}[t]
 	\centering
-	\subfloat[Sentinel-2 image (left) and National Parks Board mangrove map (right).\label{fig:pulau_visual}]{%
-		\begin{minipage}[b]{0.52\textwidth}
-			\centering
-			\includegraphics[width=0.49\textwidth]{pulauubin_visual.png}%
-			\includegraphics[width=0.49\textwidth]{pulau_ubin_mangroves_map.jpg}
-		\end{minipage}
+	\subfloat[Sentinel-2 image.\label{fig:pulau_s2}]{%
+		\includegraphics[width=0.30\textwidth]{pulauubin_visual.png}
 	}%
-	\subfloat[Global Mangrove Watch extent map \cite{article14}.\label{fig:gmw_pulau}]{%
-		\begin{minipage}[b]{0.26\textwidth}
-			\centering
-			\includegraphics[width=\textwidth]{gmw_pulau.png}
-		\end{minipage}
+	\hfill
+	\subfloat[NParks mask.\label{fig:pulau_nparks}]{%
+		\includegraphics[width=0.30\textwidth]{pulau_ubin_mangroves_map.jpg}
+	}%
+	\hfill
+	\subfloat[NParks mask and GMW extent (Bunting et~al.~\cite{article14}).\label{fig:pulau_gmw}]{%
+		\includegraphics[width=0.30\textwidth]{gmw_pulau.png}
 	}
-	\caption{Pulau Ubin study area: reference imagery (a) and initial GMW labels (b).}
+	\caption{Pulau Ubin (Singapore): the Sentinel-2 image and the NParks mangrove mask reveal clear gaps in the GMW classification, particularly along tidal channels and narrow fringing strips. This motivated the label refinement approach presented in this paper.}
+	\label{fig:pulau_intro}
 \end{figure*}
 
-As our initial labels, we use Global Mangrove Watch (GMW) products (Bunting et al. 2022 \cite{article14}) directly as a starting point for mangrove extent. 
-Because our model requires explicit negatives, we complement GMW mangrove labels with locally sampled non-mangrove pixels (water, terrestrial points or other vegetation) in the study region. 
-While GMW is invaluable for broad-scale mangrove mapping, its labels are known to be spatially imprecise at local scales: 
-boundaries often misrepresent the true mangrove extent, particularly in tidal transition zones, narrow fringing mangroves, and areas with mixed vegetation. 
-Fig.~\ref{fig:gmw_pulau} shows the GMW classification for our study area.
+We address these limitations by using AlphaEarth Foundations (Tran et~al.~\cite{article3}), 
+a model from Google DeepMind that turns eight years of multi-modal satellite data into dense 64-dimensional vectors for every pixel on Earth. 
+Our contributions are: 
+(i)~a coverage ratio formula that converts binary GMW polygons into six graduated classes using direct spatial overlap, including a principled way to generate non-mangrove samples; 
+(ii)~a global dataset that is balanced across geographic regions
+and (iii)~a ViT trained on these embeddings that goes beyond binary mapping to produce fine-grained coverage predictions, verified through Grad-CAM visualizations.
 
-The CoastTrain Reference Dataset (Murray et al., 2022), released in October 2025, was the point-based training dataset used to build the GMW classifiers. 
-Since CoastTrain labels originate from the same classification pipeline, they carry similar inaccuracies as GMW--only expressed as point-level label noise rather than polygon boundary errors. 
-For this reason, we chose not to incorporate CoastTrain in our methodology: using a derivative of GMW would not provide independent information to improve upon GMW's limitations.
+\section{Methodology}
 
-Comparing the GMW map with the National Parks Board Pulau Ubin Map mask reveals clear discrepancies--misclassified tidal areas, missing fringing mangroves, and imprecise boundaries. 
-These discrepancies motivate our approach: rather than depending on any external ground truth (whether from NParks or CoastTrain), 
-our deep learning pipeline learns directly from the structure of AlphaEarth's embedding space to refine GMW labels, 
-making it fully self-supervised with respect to external validation data.
+\subsection{AlphaEarth Foundations}
 
-\subsubsection{AlphaEarth Foundations: A Breakthrough in Geospatial AI}
+AlphaEarth Foundations (Tran et~al.~\cite{article3}) turns all available satellite observations for every pixel on Earth--optical, SAR, LiDAR, and thermal--
+into a single 64-dimensional vector per pixel, per year. 
 
-AlphaEarth Foundations, developed by Google DeepMind (Tran et al. 2025; Houriez et al. 2025 \cite{article3,article18}), 
-represents a paradigm shift in Earth observation, alongside with the release of other major foundational models. 
-Unlike traditional approaches that process optical and radar imagery separately, 
-AlphaEarth uses all available satellite data (optical, SAR, LiDAR, thermal, and hyperspectral) from 2017 to 2024 into unified 64-dimensional embeddings for each pixel on Earth.
+Data from 2017 to 2024 are combined into one representation, 
+which smooths out noise from clouds, tides, and seasonal changes. 
 
-AlphaEarth embeddings capture spatial context up to 640 meters around each pixel, 
-enabling the model to understand local environmental patterns rather than analyzing pixels in isolation.
+Each vector also captures what is happening within a 640\,m radius around the pixel, 
+so that even a single vector already encodes landscape context such as proximity to water, slope, and vegetation type (Fig.~\ref{fig:alphaearth_combined}).
+
+In our pipeline, embeddings are downloaded from Google Earth Engine as 244$\times$244$\times$64 tensors,
+using 20 parallel download threads.
+AlphaEarth embeddings have also been used for large-scale geospatial mapping tasks beyond mangroves, showing strong generalisation from sparse labels (Houriez et~al.~\cite{article18}).
 
 \begin{figure*}[t]
 	\centering
@@ -132,342 +116,261 @@ enabling the model to understand local environmental patterns rather than analyz
 		\includegraphics[width=0.48\textwidth]{alphaearth.png}
 	}%
 	\hfill
-	\subfloat[Spatial context mechanism: 640m radius.\label{fig:spatial_context}]{%
+	\subfloat[Spatial context: each pixel captures a 640\,m radius.\label{fig:spatial_context}]{%
 		\includegraphics[width=0.48\textwidth]{spatialaef.png}
 	}
-	\caption{AlphaEarth Foundations: (a) Multi-modal satellite data consolidated into unified 64-dimensional embeddings; (b) Each pixel's embedding encodes information up to a 640\,m radius.}
+	\caption{AlphaEarth Foundations (Tran et~al.~\cite{article3}): (a) multiple satellite data sources are combined into one 64-dimensional vector per pixel; (b) each vector encodes information from within a 640\,m radius, giving it built-in landscape context.}
 	\label{fig:alphaearth_combined}
 \end{figure*}
 
-\subsection{Algorithms}
+\subsection{Coverage Label Generation}
 
-\subsubsection{Self-Attention Mechanism for Spatial Context}
+One of the main contributions of this work is turning binary GMW polygon masks into a six-class coverage problem by computing the actual fraction of mangrove area within each image chip. 
 
-Traditional convolutional neural networks (CNNs) process images with fixed receptive fields (Wan et al. 2019; Guo et al. 2021 \cite{article11,article17}). 
-In contrast, self-attention mechanisms allow each pixel to capture the relevant features across the entire image, 
-making them particularly suitable for analyzing AlphaEarth embeddings with their inherent spatial context.
+Let $\mathcal{G} = \{\mathcal{P}_1, \ldots, \mathcal{P}_N\}$ be the set of GMW v3 (2020) polygons in projected coordinates (EPSG:3857). 
+For each polygon $\mathcal{P}_i$, we place a square chip $B_i$ of side $s = Pr$ centered on the polygon's centroid $\mathbf{c}_i$, 
+where $P = 244$ pixels and $r = 10$\,m/pixel:
 
-Given an input image represented as a tensor $X \in \mathbb{R}^{H \times W \times D}$ (Height × Width × Depth, where D=64 for AlphaEarth), 
-the self-attention mechanism computes:
+\begin{equation}
+s = Pr = 2440\;\text{m}, \qquad A_{\text{chip}} = s^2.
+\end{equation}
 
-\begin{enumerate}
-\item \textbf{Query, Key, Value projections:}
-\[
-Q = XW_Q, \quad K = XW_K, \quad V = XW_V
-\]
+The mangrove coverage ratio for chip $i$ is:
+\begin{equation}
+\rho_i = \frac{1}{A_{\text{chip}}} \sum_{\{k\,:\,\mathcal{P}_k \cap B_i \neq \emptyset\}}\!\mathrm{Area}\bigl(\mathcal{P}_k \cap B_i\bigr),
+\label{eq:coverage}
+\end{equation}
 
-\item \textbf{Attention scores:}
-\[
-\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
-\]
+where the sum runs over all GMW polygons that overlap chip $B_i$. 
 
-\item \textbf{Output:} The output combines information from all pixels, weighted by their relevance (attention scores)
-\end{enumerate}
+To find these polygons quickly without checking all one million GMW polygons one by one, 
+we use a spatial index--a tree structure that groups polygons by their location on the map, so that only nearby polygons are checked for each chip. 
+The coverage class is then:
+\begin{equation}
+y_i = f(\rho_i) = \begin{cases} 0 & \text{if } \rho_i = 0 \\ \lceil 5\,\rho_i \rceil & \text{if } \rho_i > 0 \end{cases}
+\label{eq:label}
+\end{equation}
+which maps the ratio to six classes: 0\%, 1--20\%, 21--40\%, 41--60\%, 61--80\%, and 81--100\%.
 
-This architecture enables our model to capture long-range dependencies between pixels, 
-essential for understanding mangrove ecosystems that exhibit complex spatial patterns influenced by tidal zones, 
-proximity to water bodies, and vegetation gradients.
+\textbf{Category 0 (no mangrove).} Any chip placed on a GMW polygon centroid will always contain at least some mangrove area, 
+so $\rho_i > 0$ for all $i$, and class $y=0$ can never appear naturally from GMW centroids. 
+
+We therefore generate no-mangrove samples separately : we draw random points within the mangrove belt ($|\phi| \leq 30^\circ$ latitude), 
+compute $\rho$ for each using the same spatial index 
+and keep only points where $\rho = 0$. 
+
+To make sure these non-mangrove samples are spread across the globe, 
+this process is done independently for four geographic regions (Americas, Africa, Asia, Pacific), 
+producing around 10\,000 confirmed non-mangrove samples.
+
+\textbf{Geographic balance.} The GMW shapefile has over one million polygons, 
+but most of them are in Southeast Asia. 
+
+If we just sampled randomly from the full set, 
+the training data would be heavily biased toward that region. 
+
+To fix this, we process up to $M = 50\,000$ polygons per geographic region 
+and for each coverage class we sample proportionally across all four regions--so the model learns from mangrove ecosystems all over the world.
+
+\subsection{Vision Transformer Architecture}
 
 \begin{figure*}[t]
 	\centering
 	\includegraphics[width=\textwidth]{vit_architecture_mangroves.pdf}
-	\caption{Vision Transformer architecture for mangrove cover classification. Input patches are linearly projected, combined with positional embeddings, and processed through $L$ transformer encoder layers with multi-head self-attention and MLP blocks. The MLP head outputs one of six mangrove coverage classes.}
+	\caption{Vision Transformer (ViT) architecture. The 244$\times$244$\times$64 input is split into 16$\times$16 patches, projected into vectors, and passed through $L$ encoder layers with multi-head self-attention and MLP blocks. A special summary token ([CLS]) collects information from all patches and feeds the final classification head, which predicts one of six coverage classes.}
 	\label{fig:vit_arch}
 \end{figure*}
 
-\subsection{Complete Workflow}
+The input chip $\mathbf{X} \in \mathbb{R}^{P \times P \times D}$ (with $D = 64$ AlphaEarth channels) 
+is cut into $n = (P/p)^2$ non-overlapping patches of size $p \times p$ pixels (Fig.~\ref{fig:vit_arch}). 
+Each patch is turned into a vector of size $d$ by a learned linear layer:
+\begin{equation}
+\mathbf{e}_j = \mathrm{Flatten}(\mathbf{x}_j)\,W_{\mathrm{proj}}, \quad j = 1, \ldots, n.
+\end{equation}
 
-Our methodology integrates multiple data sources and processing stages to refine GMW labels using AlphaEarth embeddings. 
-The entire pipeline is implemented in Python using PyTorch and PyTorch Lightning for GPU-accelerated training and reproducibility.
+where $\mathbf{x}_j$ is the raw pixel block for patch $j$ (a small cube of $p{\times}p{\times}64$ numbers).
+$\mathrm{Flatten}(\mathbf{x}_j)$ simply unrolls this cube into one long list of numbers.
+
+$W_{\mathrm{proj}}$ is a learned weight matrix that compresses this long list into a shorter vector of size $d$--it is learned during training so that important information is kept.
+The result $\mathbf{e}_j$ is the patch embedding : a compact, fixed-size representation of what patch $j$ looks like.
+
+We then add a special extra token called [CLS] (short for ``classification'') : unlike the patch tokens,
+it does not represent any part of the image.
+Its job is to collect and summarize information from all the other patches through the attention layers.
+
+At the end, only the [CLS] output is used to make the final class prediction.
+Position information is added to all tokens before they enter the encoder:
+\begin{equation}
+\mathbf{z}_j^{(0)} = \mathbf{e}_j + \mathbf{p}_j, \quad j = 0, \ldots, n.
+\end{equation}
+
+where $\mathbf{p}_j$ is a learned \emph{positional encoding} : 
+a vector that encodes where patch $j$ sits in the grid (top-left, center, bottom-right, etc.).
+
+$\mathbf{z}_j^{(0)}$ is then the starting representation of token $j$--patch content plus position--
+that is fed into the first encoder layer.
+
+Each of the $L$ encoder layers applies multi-head self-attention (MHSA) with $H$ heads. For a single head with size $d_k = d/H$:
+\begin{equation}
+\mathrm{Attn}(Q,K,V) = \mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V,
+\label{eq:attn}
+\end{equation}
+where $Q$, $K$, and $V$ are three different linear projections of the input. After the last encoder layer, the [CLS] token feeds a two-layer prediction head that outputs scores over the six coverage classes.
+
+Self-attention lets every patch look at every other patch in the chip at the same time, which matters a lot for mangroves: ecosystem boundaries follow gradients (tidal channels, transitions between water and vegetation) that span many patches and are missed by convolutional networks with fixed local windows. Since the 64 AlphaEarth channels already carry multi-modal and multi-year information, the transformer only needs to learn how the patches relate to each other---not low-level visual features from scratch.
+
+\subsection{Complete Pipeline}
 
 \begin{figure*}[t]
 	\centering
 	\includegraphics[width=\textwidth]{workflowfinal_preview.pdf}
-	\caption{Complete workflow: from GMW labels to refined mangrove classification using AlphaEarth embeddings, GPU-accelerated deep learning, and Grad-CAM interpretability}
+	\caption{Complete pipeline: GMW polygon labels are converted into six coverage classes using Eq.~(\ref{eq:coverage})--(\ref{eq:label}), AlphaEarth embeddings are downloaded from GEE, and a ViT is trained to predict the coverage class. Grad-CAM maps verify that the model focuses on the right ecological features.}
 	\label{fig:workflow}
 \end{figure*}
 
-\textbf{Pipeline stages.}
-The pipeline begins with a label extraction and coverage computation phase, during which we ingest the Global Mangrove Watch v3 (2020) shapefile that provides mangrove extent polygons worldwide. For each polygon, a 244$\times$244~pixel chip (2440\,m~$\times$~2440\,m at 10\,m resolution) is placed on the polygon's centroid, and every GMW polygon that intersects this chip is rasterized so that the number of mangrove versus non-mangrove pixels can be counted. The ratio of mangrove pixels to total pixels yields a coverage percentage, which is used to assign the chip to one of six discrete classes---0\%, 1--20\%, 21--40\%, 41--60\%, 61--80\%, or 81--100\%---thereby converting the continuous GMW masks into a categorical classification problem suited to supervised learning.
-
-Once the chips have been defined and labeled, the pipeline proceeds to an embedding download stage. For every chip, the corresponding AlphaEarth 64-dimensional embeddings are retrieved from Google Earth Engine through the \texttt{GOOGLE/SATELLITE\_EMBEDDING/V1/ANNUAL} image collection. Each pixel in the chip is thereby represented by a dense vector of 64 values encoding multi-modal satellite information---optical, SAR, LiDAR, and thermal---accumulated over eight years of observations (2017--2024). The output of this stage is a 244$\times$244$\times$64 tensor per chip, and in order to make this large-scale retrieval tractable, twenty download threads are run in parallel.
-
-The third stage is dataset construction. Chips are collected from across South-East Asia so as to capture the ecological diversity of different mangrove species, tidal regimes, and coastal environments. To prevent any coverage class from dominating the training signal, an equal number of chips is sampled per class, producing a balanced dataset. Each sample pairs a 244$\times$244$\times$64 embedding tensor (the input) with its corresponding coverage class (the label), and the full collection is then partitioned into training, validation, and test subsets following standard machine learning practice.
-
-With the dataset in place, the pipeline moves to model training. An attention-based vision transformer is trained on the embedding tensors using GPU acceleration. The transformer learns to predict the coverage class of each chip by exploiting the spatial patterns encoded in the 64-dimensional embeddings; its self-attention layers allow every patch of the image to attend to every other patch, capturing long-range dependencies that fixed-kernel convolutional architectures would miss. Training is orchestrated through PyTorch Lightning, which manages the Adam optimizer, step-based learning rate decay, and automatic model checkpointing based on the validation loss, ensuring reproducibility and efficient resource utilization.
-
-After training, the classification stage applies the learned model to new, unseen 244$\times$244$\times$64 embedding tiles and outputs a predicted mangrove coverage class for each one. Because the model generalizes from the patterns learned during training, it can classify regions that were never part of the training set, producing a refined mangrove map with six graduated levels of coverage rather than the simple binary presence/absence mask provided by the original GMW product.
-
-To ensure that the model's decisions are scientifically interpretable, an interpretability stage follows, in which Gradient-weighted Class Activation Mapping (Grad-CAM) is applied. Grad-CAM generates a spatial heatmap over each tile, highlighting the regions that most strongly influenced the predicted class. This diagnostic step verifies that the model relies on ecologically meaningful patterns---such as water--vegetation boundaries, tidal channel morphology, or canopy density gradients---rather than on false correlations or artifacts, thereby reinforcing confidence in the classification outputs (Fig.~\ref{fig:workflow}).
-
-Finally, a qualitative comparison stage places the model's predictions for Pulau Ubin side by side with the National Parks Board mangrove mask. This comparison is strictly qualitative: the NParks map dates from several years ago and reflects a past state of the ecosystem, so it cannot serve as ground truth. Nonetheless, it provides a valuable visual check to assess whether the refined map better captures mangrove boundaries---particularly in tidal transition zones and narrow fringing strips---than the original GMW labels from which training began.
-
-In summary, the complete pipeline can be condensed into the following sequence:
+The full pipeline (Fig.~\ref{fig:workflow}) runs in six steps:
 \begin{enumerate}
-\item \textbf{Label extraction \& coverage computation:} GMW polygons are rasterized into 244$\times$244 chips and assigned to one of six coverage classes.
-\item \textbf{Embedding download:} AlphaEarth 64-dimensional embeddings are retrieved from Google Earth Engine for each chip, producing 244$\times$244$\times$64 tensors.
-\item \textbf{Dataset construction:} Chips are sampled in a class-balanced fashion across South-East Asia and split into training, validation, and test sets.
-\item \textbf{Model training:} A vision transformer is trained on the embedding tensors with GPU acceleration via PyTorch Lightning.
-\item \textbf{Classification:} The trained model predicts six-class mangrove coverage on new, unseen embedding tiles.
-\item \textbf{Interpretability (Grad-CAM):} Spatial heatmaps reveal which regions drive the model's decisions, ensuring ecological plausibility.
-\item \textbf{Qualitative comparison:} Predictions on Pulau Ubin are visually assessed against the National Parks Board mangrove mask.
+\item \textbf{Coverage labels:} Eq.~(\ref{eq:coverage})--(\ref{eq:label}) assign each GMW centroid a class; non-mangrove samples ($y=0$) are generated by geographic random sampling with a spatial filter.
+\item \textbf{Embedding download:} AlphaEarth 244$\times$244$\times$64 tensors are retrieved from GEE using 20 parallel threads.
+\item \textbf{Dataset:} Chips are balanced by coverage class and by geographic region (Americas, Africa, Asia, Pacific) to ensure global diversity.
+\item \textbf{Training:} The ViT is trained with Adam, learning rate decay, cross-entropy loss, and early stopping based on validation loss via PyTorch Lightning.
+\item \textbf{Inference:} The trained model predicts one of six coverage classes for each new chip.
+\item \textbf{Interpretability:} Grad-CAM maps check that predictions are based on the right ecological features.
 \end{enumerate}
 
-\subsection{Training Dataset Composition}
+\section{Model Design}
 
-The training dataset is constructed by generating 244$\times$244~pixel images (2440\,m~$\times$~2440\,m at 10\,m resolution) from GMW mangrove labels, 
-with each image assigned to one of six coverage classes. 
-For a given GMW mangrove polygon, we center a 244$\times$244 patch on its centroid and rasterize the intersection of all GMW polygons falling within the patch. 
-The mangrove coverage ratio is then computed as the ratio of mangrove pixels over the total number of pixels in the patch. 
-Based on this ratio, the image is assigned to the corresponding coverage class: 0\%, 1--20\%, 21--40\%, 41--60\%, 61--80\%, or 81--100\%. 
-For instance, an image where 30\% of pixels overlap with GMW mangrove polygons is assigned to the 21--40\% class.
+\subsection{Baselines}
 
-To ensure a balanced training set and prevent the model from being biased toward the most common coverage levels, 
-we sample an equal number of images per class. 
+To check how much self-attention actually helps, 
+we compare the ViT against four simpler models trained on the same embedding tensors. Two classic machine learning baselines--Random Forest (RF) and XGBoost--
+take a simple 128-dimensional summary of each chip : the average and the standard deviation of each of the 64 embedding channels. 
 
-For each selected patch, the corresponding AlphaEarth 64-dimensional embeddings are downloaded via Google Earth Engine, 
-producing a 244$\times$244$\times$64 tensor that serves as the model input. 
-The coverage class derived from the GMW rasterization serves as the training label.
+Two deep learning baselines--a Fully Connected Network (FCN) and a Convolutional Neural Network (CNN)--
+receive the full 244$\times$244$\times$64 tensor but can only look at a fixed local area at a time, which limits their ability to pick up on long-range spatial patterns.
+CNN-based models have already shown good results for mangrove mapping (Wan et~al.~\cite{article11}; Guo et~al.~\cite{article17}), but their fixed local view remains a key limitation when boundaries span large spatial scales.
 
-\section{Model Design and Planned Evaluation}
+All models are trained and tested on the same splits.
 
-\subsection{Model Architectures and Baselines}
+\subsection{Training Details}
 
-To evaluate the benefit of self-attention for this task, we plan to benchmark our vision transformer against several baseline architectures. 
+The ViT uses patch size $p=16$, 
+embedding size $d=256$, $L=6$ encoder layers, 
+$H=8$ attention heads, and dropout 0.1. 
 
-For machine learning baselines, Random Forest and XGBoost classifiers will be trained on flattened AlphaEarth embeddings, 
-treating each 64-dimensional pixel representation as independent features. 
+We train with Adam ($\beta_1=0.9$, $\beta_2=0.999$, initial learning rate $10^{-3}$), step-based learning rate decay, batch size 16, and automatic mixed precision on a single GPU, using PyTorch Lightning. 
 
-For deep learning baselines, Fully Connected Networks (FCN) will process embeddings through multiple dense layers, 
-and Convolutional Neural Networks (CNN) will apply spatial convolutions to capture local patterns. 
+The baseline deep learning models use the same optimizer and run for 20 epochs.
 
-Our proposed approach uses a Vision Transformer with Self-Attention mechanism specifically designed to exploit the spatial context inherent in AlphaEarth embeddings, 
-enabling the model to dynamically weight the relevance of distant pixels when classifying each location. All deep learning models are trained on GPU, 
-which is essential given the volume of the embedding tiles and the quadratic complexity of the attention mechanism.
+\subsection{Grad-CAM Interpretability}
 
-\subsection{Coverage Classification}
+Gradient-weighted Class Activation Mapping (Grad-CAM) (Selvaraju et~al.~\cite{selvaraju2017gradcam}) shows which parts of a chip drive the model's prediction. For a predicted class $c$, the heatmap is built in two steps. First, compute how much each feature map channel contributed to the prediction:
+\begin{equation}
+\alpha_k^c = \frac{1}{Z}\sum_{i,j} \frac{\partial S^c}{\partial A^k_{ij}},
+\end{equation}
+where $S^c$ is the class score before the final softmax, $A^k$ is the $k$-th feature map, and $Z$ is the total number of positions. Then, combine the channels into a single heatmap:
+\begin{equation}
+L^c = \mathrm{ReLU}\!\left(\sum_k \alpha_k^c\, A^k\right).
+\label{eq:gradcam}
+\end{equation}
+For our ViT, Grad-CAM is applied to the patch outputs of the last encoder block.
 
-Beyond binary classification (mangrove/non-mangrove), our model predicts mangrove coverage percentage within each 244×244 pixel tile, 
-enabling fine-grained mapping across six coverage classes. 
-
-Tiles classified as 0\% indicate complete absence of mangrove vegetation, 
-corresponding to open water or terrestrial environments. 
-
-The 1-20\% class captures sparse mangrove patches at ecosystem boundaries or degraded areas, 
-while 21-40\% represents scattered mangroves with visible gaps in canopy coverage. 
-
-Moderate mangrove coverage (41-60\%) indicates transitional zones with substantial but incomplete canopy closure. 
-
-Dense mangroves (61-80\%) represent well-established forests with minor gaps, 
-and near-complete mangrove forests (81-100\%) correspond to mature, 
-continuous canopy coverage. 
-
-This multi-class approach provides greater insight into mangrove ecosystem structure than binary maps, 
-supporting applications like carbon stock estimation, 
-as well as temporal monitoring of degradation and restoration processes.
-
-\subsection{Grad-CAM for Model Interpretability}
-
-A key advantage of our deep learning approach is the ability to understand why the model makes its predictions, 
-not just what it predicts. 
-We integrate Gradient-weighted Class Activation Mapping (Grad-CAM) \cite{selvaraju2017gradcam} 
-into our inference pipeline to produce spatial heatmaps highlighting the regions within each 244$\times$244 tile that most strongly influence the model's classification decision.
-
-Grad-CAM computes the gradient of the predicted class score with respect to the feature maps of the last convolutional or attention layer, 
-producing a coarse localization map that indicates the importance of each spatial region. 
-
-For mangrove mapping, this interpretability layer serves several critical purposes: 
-(i)~it reveals whether the model relies on ecologically meaningful features (e.g., proximity to water, vegetation gradients) rather than false correlations; 
-(ii)~it helps identify systematic failure modes, such as confusion between mangroves and dense vegetation; 
-and (iii)~it provides visual evidence to support or challenge the model's predictions during expert review, 
-which is essential for the credibility of downstream applications such as carbon credit verification.
-
-By examining Grad-CAM heatmaps across tiles, 
-we aim to verify that the self-attention mechanism learns to focus on the spatial patterns that ecologists recognize as indicators of mangrove presence, 
-tidal channels, water and canopy density gradients.
-
-\subsection{Planned Validation Strategy}
-
-The model learns entirely from AlphaEarth embeddings and GMW-derived labels through deep learning. 
- 
-The validation will focus on whether the approach improves upon GMW in tidal zones, 
-where AlphaEarth's temporal averaging may reduce the impact of tidal flooding on classification. 
-Particular attention will be given to potential false positives from terrestrial vegetation with similar spectral signatures, 
-such as dense forests.
+By looking at these maps across all six classes, we can check that the model is working correctly: high-coverage chips should highlight dense canopy areas, mid-coverage chips should focus on water--vegetation edges, and class-0 chips should point to open water or land. This step also helps catch failure cases, for example when the model confuses mangroves with dense inland forest, which can look similar in some regions (Giri et~al.~\cite{article4}).
 
 \section{Discussion}
 
-\subsection{Advantages of Foundation Models for Mangrove Mapping}
+\subsection{Why Foundation Embeddings for Mangroves?}
 
-AlphaEarth Foundations represents a significant advancement over traditional satellite imagery analysis through four key mechanisms. 
+Traditional classifiers pick SAR images and some spectral bands from one or two sensors on a single date, 
+usually chosen via specific algorithms to only use the most important ones.
+Additionally, they often rely on external ground truth labels that are expensive to collect and may not be available everywhere.
+Finally, they treat each pixel independently, 
+without learning how different spatial areas relate to each other. 
 
-First, its multi-modal integration combines optical, SAR, LiDAR, and thermal data within each pixel's embedding, 
-capturing complementary information about mangrove structure, 
-moisture and biomass that single or two-sensors approaches can miss.
+AlphaEarth solves all three problems at once : it combines optical, SAR, LiDAR, and thermal data; 
+it uses eight years of observations instead of one date 
+and its 640\,m spatial context already encodes landscape-level features in each vector. 
 
-Optical data reveals canopy spectral properties, 
-SAR penetrates vegetation to assess structure, 
-LiDAR provides vertical profiling 
-and thermal signatures indicate water stress. 
+This is especially useful for mangroves, 
+where a single satellite pass during high tide or a cloudy season can give a completely wrong picture (Giri et~al.~\cite{article4}). 
 
-Second, the temporal context synthesized across 8 years (2017-2024) of observations reduces noise from clouds, tides
-and seasonal variations that disturbs single-date imagery, 
-creating robust representations that reflect persistent land cover characteristics rather than short-term conditions. 
+Even a simple model trained on AlphaEarth embeddings should outperform a carefully tuned classifier using raw single-source imagery--our ViT goes further by learning how different spatial areas in the chip relate to each other.
 
-Third, the 640m spatial context radius enables each pixel's embedding to encode landscape-level patterns such as proximity to water bodies, 
-elevation gradients, 
-and vegetation transitions that strongly indicate mangrove presence, 
-moving beyond pixel-wise classification to ecosystem-aware inference. 
+\subsection{Six Classes vs.\ Binary Maps}
 
-Finally, AlphaEarth's globally consistent embedding space enables training on diverse mangrove types worldwide—from Caribbean red mangroves to Southeast Asian Rhizophora forests—
-and applying the resulting model anywhere without region-specific retraining, 
-a fundamental advantage over traditional approaches that require extensive local ground truth collection.
+The six-class formula in Eq.~(\ref{eq:label}) is a real step beyond binary GMW maps. 
 
-\subsection{Self-Attention for Geospatial Analysis}
+First, the 20\% intervals between classes capture ecosystem gradients (sparse edge mangroves vs.\ dense interior forest) that matter for carbon estimates : biomass is not the same across every pixel 
+and a coverage ratio gives a much better proxy for above-ground carbon than a simple yes/no label. 
 
-The attention mechanism is specifically designed to exploit AlphaEarth's spatial context encoding. 
-Traditional CNNs with fixed receptive fields struggle to capture the variable-scale patterns characteristic of mangrove ecosystems, 
-from narrow tidal channels to extensive forests. 
+Second, class~0 is built from confirmed non-mangrove points found by spatial filtering--not just assumed from GMW absence--which cuts down on false positives in mixed coastal areas. 
 
-Self-attention can dynamically identify relevant spatial relationships regardless of distance within the image, 
-which is why we expect it to outperform convolutional approaches on this task.
+Together, the six-class labels and global sampling let the model work across very different mangrove types, 
+from Caribbean red mangroves to Southeast Asian Rhizophora forests, 
+without needing to be retrained for each region.
 
-Future work could explore multi-scale attention to simultaneously process tiles at different resolutions, 
-capturing both fine-grained mangrove structure and landscape-level context. 
+\subsection{No External Ground Truth}
 
-Combined with Grad-CAM interpretability, multi-scale attention would enable ecologists to understand not only where the model attends, 
-but at which spatial scale the most discriminative features emerge---an insight that could guide sensor selection and spatial resolution requirements for future monitoring campaigns.
+Our pipeline is fully self-contained : training labels come from GMW and model quality is checked through Grad-CAM and by comparing predictions with the NParks mangrove mask for Pulau Ubin. 
 
-\subsection{Limitations and Future Directions}
+We do not use the CoastTrain dataset (Bunting et~al.~\cite{article14}) as ground truth because it was built using the same GMW classification process; using it would create a circular evaluation. 
 
-Several methodological challenges remain that warrant future investigation. 
-The temporal averaging inherent in AlphaEarth embeddings, while reducing noise, 
-potentially obscures short-term tidal flooding patterns that significantly influence mangrove detection in frequently inundated zones. 
+The NParks mask is also not used for training, only as a visual reference, since it dates from several years ago and may not reflect the current state of the mangroves. 
 
-Incorporating explicit tidal models or phase-specific imagery could improve classification accuracy in these dynamic coastal environments. 
+Instead, our model improves on GMW by using the richer information already encoded in AlphaEarth vectors.
 
-Additionally, our current model identifies mangrove presence and coverage but does not distinguish between species such as Avicennia, Rhizophora, or Sonneratia, 
-limiting its utility for biodiversity assessment and ecological monitoring. 
+\subsection{Limitations and Future Work}
 
-Integrating hyperspectral data with finer spectral resolution or incorporating field survey data could enable species-level mapping essential for conservation planning. 
-We are currently awaiting TeLEOS-2 (SAR, 1m resolution) and DS-EO (optical, 1m resolution) imagery ordered for Pulau Ubin, 
-which will enable sub-meter validation of our predictions and potentially improve model training through finer spatial detail, 
-particularly for delineating narrow mangrove strips along tidal channels. 
+AlphaEarth averages data over eight years, 
+which reduces noise from tides but may also hide short-term inundation patterns that help distinguish mangrove species (Avicennia, Rhizophora, Sonneratia). 
 
-Perhaps most significantly, extending our mapping approach to estimate aboveground and belowground carbon stocks remains challenging due to limited ground truth data correlating remote sensing signatures with field-measured biomass and soil organic carbon. 
-Our literature review revealed that soil organic carbon (SOC) constitutes 60-90\% of total ecosystem carbon in mangroves (Rani et al. 2023; Ouyang et al. 2020 \cite{article40,article41}), 
-yet satellite remote sensing alone cannot accurately quantify SOC without extensive field sampling, 
-allometric models linking canopy structure to belowground biomass, 
-and soil coring data to calibrate depth-integrated carbon stocks.
+Our pipeline maps coverage, not species composition, which limits its use for biodiversity studies. 
 
-From a computational perspective, scaling the approach to global coverage will require multi-GPU and distributed training strategies. 
-Our current single-GPU setup, while sufficient for regional studies, 
-will need to scale to multi-node GPU clusters for processing the full global mangrove extent. 
+Species-level mapping would require hyperspectral data or field-collected spectral measurements.
 
-\subsection{Uncertainty Quantification}
+We have ordered 1\,m resolution SAR imagery from TeLEOS-2 and optical imagery from DS-EO for Pulau Ubin. 
 
-Rigorous uncertainty estimation is essential for the credibility of our classification outputs, 
-particularly when they feed into downstream applications such as carbon credit verification (Merchant et al. 2017 \cite{article34}). 
-We identify two complementary sources of uncertainty within our methodology.
+These images will be the main qualitative case study for our pipeline : once available, we will run the trained model on these high-resolution tiles and compare the six-class coverage map against both the NParks mask and the original GMW labels. 
 
-\textbf{Classification uncertainty} derives from the confusion matrix generated through validation, 
-quantifying omission errors (mangroves missed) and commission errors (false positives). 
-These metrics enable statistical correction of area estimates through error matrix inversion or Bayesian approaches, 
-and directly indicate where the model's predictions are most and least reliable across the landscape.
+This will give a detailed, location-specific view of where the refinement actually adds value--especially for narrow mangrove strips along tidal channels--and whether the Grad-CAM activations match ecological features visible at 1\,m resolution. 
 
-\textbf{Model uncertainty} can be estimated through Monte Carlo dropout during inference: 
-multiple stochastic forward passes with randomly dropped neurons provide prediction variance estimates for each tile, 
-effectively identifying pixels with ambiguous classification where the model lacks confidence. 
-Regions of high uncertainty--typically at mangrove--water or mangrove--terrestrial boundaries--signal where additional data 
-or finer-resolution imagery would most improve predictions.
+Combining these images with field measurements could further extend the pipeline to estimate above- and below-ground carbon stocks, 
+which is still the main gap for credible blue-carbon accounting (Rani et~al.~\cite{article40}; Ouyang et~al.~\cite{article41}).
 
-Combined with Grad-CAM interpretability, these uncertainty estimates provide a complete diagnostic toolkit: 
-Grad-CAM reveals what the model looks at, 
-while Monte Carlo dropout reveals how confident it is. 
-Together, they enable targeted expert review of the most uncertain predictions rather than exhaustive manual verification, 
-which is impractical at regional or global scales.
+Scaling to global coverage will need multi-GPU training. 
 
-\subsection{Broader Implications}
-
-This methodology extends beyond mangroves to other coastal blue carbon ecosystems including salt marshes and seagrass meadows, 
-as well as terrestrial forests, wherever foundation model embeddings combined with attention mechanisms can exploit spatial and temporal context. 
-
-AlphaEarth's global coverage enables several critical applications for conservation and climate policy. 
-
-Deforestation monitoring becomes feasible at unprecedented scales, 
-tracking mangrove loss in near-real-time for conservation enforcement and illegal logging detection, 
-with the temporal baseline enabling change detection that identifies degradation before complete forest loss. 
-
-Restoration assessment can quantify the success of replanting projects by monitoring canopy closure rates and spatial expansion of restored mangrove patches, 
-providing objective metrics for evaluating restoration investments and adaptive management. 
-
-Perhaps most significantly for climate policy, this approach supports blue carbon credit mechanisms with transparent, 
-verifiable mapping that meets the requirements of compliance markets, 
-where independently validated forest extent and change detection showcase the credibility of carbon sequestration claims. 
-
-The rapid pace of AI innovation necessitates continuous adaptation of methodologies as new foundation models emerge. 
-
-AlphaEarth, released in late 2025, already supersedes traditional approaches, 
-but future iterations with enhanced spatial resolution, additional sensor fusion, 
-or purpose-trained embeddings could further improve performance. 
-
-Complementary advances in satellite constellations, 
-particularly specialized sensors such as canopy-penetrating L-band radar specifically designed for soil organic carbon estimation or hyperspectral imagers with mangrove-optimized band configurations, 
-could revolutionize coastal ecosystem monitoring by addressing the current limitations in belowground carbon quantification.
+Our single-GPU setup works well for regional studies but is too slow for full global deployment. 
+Future work could also add uncertainty estimates through repeated inference with dropout enabled, which would flag the chips where the model is least confident and where expert review would be most useful.
 
 \section{Conclusion}
 
-We propose an end-to-end deep learning methodology combining AlphaEarth Foundations with GPU-accelerated, 
-attention-based vision transformers and Grad-CAM interpretability to refine mangrove mapping beyond existing datasets like Global Mangrove Watch. 
-Our case study on Pulau Ubin targets improved boundary delineation in challenging tidal zones through the use of foundation model embeddings, 
-without relying on any external ground truth for training.
+We presented a pipeline that turns binary Global Mangrove Watch labels into six graduated coverage classes using AlphaEarth Foundations embeddings and a Vision Transformer. 
 
-Our key contributions are methodological. 
+The core contribution is a coverage ratio $\rho_i$ (Eq.~\ref{eq:coverage}) computed by intersecting each chip with all overlapping GMW polygons, 
+sorted by a spatial location index, 
+then rounded into six classes (Eq.~\ref{eq:label}). 
 
-We designed a replicable, 
-GPU-accelerated workflow that integrates AlphaEarth's 64-dimensional embeddings with self-attention vision transformers, 
-enabling multi-class mangrove coverage prediction that captures ecosystem gradients rather than binary presence/absence. 
+Non-mangrove chips ($\rho = 0$) are built by geographic random sampling with a spatial filter across four global regions, 
+so the training data covers mangrove ecosystems worldwide and not just the most polygon-dense areas.
 
-The pipeline is fully self-contained: it relies on GMW-derived labels refined through deep learning rather than on external ground truth maps such as the National Parks Board mask, 
-which dates from several years ago and cannot be considered a reliable reference for current mangrove extent.
+The ViT's self-attention lets every part of the chip communicate with every other part, capturing the spatial gradients that define mangrove boundaries. 
 
-This workflow is openly documented and transferable to other ecosystems and geographic regions. 
+Grad-CAM maps confirm that predictions focus on the right ecological features. 
 
-We also provide a theoretical basis for why foundation models' inherent spatial context encoding (640m radius) and temporal synthesis (8 years of multi-modal observations) should specifically benefit mangrove mapping, 
-by capturing landscape-level patterns and reducing noise from conditions that have historically challenged optical and radar classification.
+The pipeline needs no external ground truth, is fully reproducible, and is released as an open Python package. 
 
-The integration of Grad-CAM ensures that model predictions are interpretable, 
-enabling ecologists to verify that the model focuses on ecologically meaningful spatial features.
-
-Once experiments are complete, we plan to qualitatively assess our predictions against the National Parks Board mask and compare our approach with traditional machine learning baselines (Random Forest, XGBoost) as well as standard deep learning architectures (FCN, CNN). 
-
-Future work will incorporate incoming high-resolution satellite imagery from TeLEOS-2 (SAR, 1m) and DS-EO (optical, 1m) to validate and potentially refine predictions at sub-meter scales, 
-expand the methodology to carbon stock estimation through integration with field-validated allometric models and soil organic carbon measurements, 
-scale training to multi-GPU distributed setups for global coverage, 
-and apply the complete workflow across diverse mangrove regions globally to assess generalization and identify region-specific calibration requirements.
-
-As climate finance mechanisms increasingly rely on satellite monitoring for blue carbon credits, 
-methodologies like ours that leverage cutting-edge AI while maintaining scientific rigor and uncertainty quantification will be essential for credible, 
-transparent ecosystem valuation.
+Future work will add high-resolution validation imagery from Pulau Ubin and extend the approach toward carbon stock estimation.
 
 \vspace{0.3cm}
 
 \textbf{Acknowledgments:}
-This work was led by Alexandre Gars (National University of Singapore) 
-and Michaël Dell'Aiera (National University of Singapore, mda@nus.edu.sg), 
-with contributions from Afreen Siddiqi(Massachusetts Institute of Technology),
-Koenraad Mouthaan (National University of Singapore, k.mouthaan@nus.edu.sg), 
-Régis Guinvarc'h and Laetitia Thirion-Lefevre (CentraleSupélec / SONDRA).
+This work was led by Alexandre Gars and Micha\"el Dell'Aiera (National University of Singapore, mda@nus.edu.sg), 
+with contributions from Afreen Siddiqi (MIT), Koenraad Mouthaan (NUS), 
+R\'egis Guinvarc'h, and Laetitia Thirion-Lefevre (CentraleSupelec / SONDRA). 
+We thank the National Parks Board of Singapore for the Pulau Ubin mangrove mask.
 
-We thank the National Parks Board of Singapore for providing the mangrove mask used as a qualitative reference.
-
-\vspace{0.5cm}
-\noindent\textbf{Note:} \textit{This paper presents ongoing research. 
-The methodology, workflow, and theoretical framework described herein are established, 
-but experimental results, quantitative evaluations, and model benchmarks are still being conducted. 
-Final performance metrics and validation results will be reported upon completion of the study.}
-
-\section{References}
+\vspace{0.3cm}
+\noindent\textbf{Note:} \textit{This paper presents ongoing research. Experimental results and quantitative evaluations are still being conducted. Final performance metrics will be reported upon completion. We aim at publishing a comprehensive version of this work in a peer-reviewed journal at the end of March.}
 
 \small
 \bibliographystyle{IEEEtranN}

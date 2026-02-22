@@ -2,9 +2,9 @@
 Model architectures for mangrove coverage classification.
 
 Implements:
-- Classifier: simple fully-connected baseline
-- CNNClassifier: convolutional baseline
-- ViTClassifier: Vision Transformer (proposed approach from the paper)
+- Classifier : simple fully-connected baseline
+- CNNClassifier : convolutional baseline
+- ViTClassifier : Vision Transformer (proposed approach from the paper)
 """
 
 import math
@@ -135,7 +135,7 @@ class ViTClassifier(nn.Module):
     Vision Transformer for mangrove coverage classification.
 
     Architecture follows the paper:
-    - Input: (B, 64, 244, 244) AlphaEarth embedding tensor
+    - Input : (B, 64, 244, 244) AlphaEarth embedding tensor
     - Patch embedding with positional encoding
     - L Transformer encoder blocks with multi-head self-attention
     - [CLS] token -> MLP head -> 6-class coverage prediction
@@ -202,23 +202,6 @@ class ViTClassifier(nn.Module):
         x = self.norm(x)
         cls_out = x[:, 0]                                     # (B, E)
         return self.head(cls_out)
-
-    def get_last_attention(self, x: torch.Tensor):
-        """Return attention weights from the last transformer block (for Grad-CAM)."""
-        B = x.shape[0]
-        x = self.patch_embed(x)
-        cls_tokens = self.cls_token.expand(B, -1, -1)
-        x = torch.cat([cls_tokens, x], dim=1)
-        x = self.pos_drop(x + self.pos_embed)
-
-        for blk in self.blocks[:-1]:
-            x = blk(x)
-
-        # Last block – extract attention weights
-        x_norm = self.blocks[-1].norm1(x)
-        _, attn_weights = self.blocks[-1].attn(
-            x_norm, x_norm, x_norm, need_weights=True)
-        return attn_weights
 
     def num_params(self) -> int:
         return sum(p.numel() for p in self.parameters() if p.requires_grad)

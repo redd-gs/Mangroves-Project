@@ -1,9 +1,8 @@
 """
 PyTorch Lightning modules for training and evaluation.
 
-Implements:
-- LitModule: generic Lightning wrapper with train/val/test steps,
-  optimizer & scheduler configuration, and metric logging.
+Implements LitModule: generic Lightning wrapper with train/val/test steps,
+optimizer & scheduler configuration and metric logging.
 """
 
 import torch

@@ -6,7 +6,7 @@ setup(
     packages=find_packages(),
     entry_points={
         'console_scripts': [
-            'run = model.train:main',
+            'run = model.main:main',
         ]
     },
 )

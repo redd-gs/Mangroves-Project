@@ -14,5 +14,4 @@ __pypackages__/
 .env
 .venv
 
-Writing_Sample/*
-!Writing_Sample/Writing_Sample.pdf
+Writing_Sample/

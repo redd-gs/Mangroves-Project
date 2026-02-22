@@ -61,40 +61,6 @@ class Collection:
         else:
             return None
         
-    def is_available(
-            self, 
-            region: Region, 
-            year: int) -> bool:
-        """
-        Check if AlphaEarth embedding data is available for a given point and year.
-
-        Args:
-            region (Region): The region to check availability for.
-            year (int): The year to check availability for.
-        Returns:
-            bool: True if data is available, False otherwise.
-        """
-        try:
-            image = self.fetch_image_from_region_in_collection(region.region, year)
-            
-            if image is not None:
-                image_info = image.getInfo()
-                logger.info(f'Image properties: {list(image_info.keys())}')
-                
-                # Check band names
-                if 'bands' in image_info:
-                    band_names = [band['id'] for band in image_info['bands']]
-                    logger.info(f'Available bands: {band_names[:10]}... (showing first 10)')
-                
-                return True
-            else:
-                logger.warning(f'No AlphaEarth data found for {year}')
-                return False
-                
-        except Exception as e:
-            logger.error(f'An error occured during the check: {e}')
-            return False
-        
     def extract(
             self, 
             region: Region,

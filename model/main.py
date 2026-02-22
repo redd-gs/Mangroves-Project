@@ -1,8 +1,6 @@
 """
-Mangrove Project — Full Pipeline Entry Point
-
 Runs the complete pipeline: train ViT model, train baselines, compare models,
-run inference, and generate Grad-CAM visualizations.
+run inference and generate Grad-CAM visualizations.
 
 Usage:
     python -m model.main \
@@ -42,7 +40,7 @@ from model.pipeline import (
     generate_gradcam_samples,
     CATEGORY_NAMES,
 )
-from model.training_module import LitModule
+
 
 seed_everything(42, workers=True)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -158,9 +156,7 @@ def main():
         dm_config = yaml.load(f)
     embedding_dir = os.path.expanduser(dm_config['path'])
 
-
-    # 2. Train ViT (main model) via PyTorch Lightning
-
+    # 2. Train ViT via PyTorch Lightning
 
     if args.train:
         logger.info("=" * 60)
@@ -298,8 +294,7 @@ def main():
 
     # Done
 
-    logger.info("=" * 60)
-    logger.info("Pipeline complete!")
+    logger.info("Pipeline complete")
     logger.info(f"All outputs saved to: {args.output_dir}")
 
 
