@@ -6,9 +6,9 @@ This project proposes an end-to-end deep learning methodology that leverages Goo
 
 Starting from Global Mangrove Watch (GMW) products as initial labels, we extract AlphaEarth embeddings for GMW-labeled mangrove pixels and complement them with locally sampled non-mangrove pixels (water and terrestrial vegetation). We then train a GPU-accelerated Vision Transformer (ViT) with self-attention to reclassify and refine the initial labels into six graduated coverage classes (0%, 1–20 %, 21–40 %, 41–60 %, 61–80 %, 81–100 %).
 
-To ensure model interpretability, we integrate Gradient-weighted Class Activation Mapping (Grad-CAM), which produces spatial heatmaps highlighting the regions that most influence the model's classification decisions—verifying that predictions rely on ecologically meaningful patterns such as water–vegetation boundaries, tidal channel morphology, and canopy density gradients.
+To ensure model interpretability, we integrate Gradient-weighted Class Activation Mapping (Grad-CAM), which produces spatial heatmaps highlighting the regions that most influence the model's classification decisions : verifying that predictions rely on ecologically meaningful patterns such as water–vegetation boundaries, tidal channel morphology and canopy density gradients.
 
-The ViT is benchmarked against traditional ML baselines (Random Forest, XGBoost) and deep learning baselines (FCN, CNN), and predictions are qualitatively assessed against the National Parks Board mangrove mask on the Pulau Ubin study area.
+The ViT is benchmarked against traditional ML baselines (Random Forest, XGBoost) and deep learning baselines (FCN, CNN) and predictions will be qualitatively assessed against the National Parks Board mangrove mask and ordered SAR/Optical high-resolution (1m) images of Pulau Ubin (Singaporean Island).
 
 
 ## Pipeline
